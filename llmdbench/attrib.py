@@ -18,6 +18,9 @@ Deux sources, par ordre de préférence :
 Les deux se recoupent : si les totaux divergent nettement, c'est en soi un
 signal (trafic parasite, retries côté routeur, ou pod hors du selector).
 """
+
+from __future__ import annotations
+
 from . import cluster
 
 

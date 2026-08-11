@@ -17,6 +17,9 @@ le seul mode qui révèle honnêtement le point de rupture d'un déploiement.
 Règle d'usage : boucle fermée pour établir la capacité, boucle ouverte pour
 valider un SLO à un débit cible.
 """
+
+from __future__ import annotations
+
 import queue
 import random
 import threading

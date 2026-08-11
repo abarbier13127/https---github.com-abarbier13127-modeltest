@@ -39,6 +39,9 @@ Usage :
 
 Codes retour : 0 = OK, 1 = échec, 2 = non concluant (endpoint injoignable).
 """
+
+from __future__ import annotations
+
 import argparse
 import json
 import os

@@ -22,6 +22,9 @@ Trois familles, qui servent des objectifs de test différents :
 Tout est déterministe (seed) : deux exécutions comparables produisent
 exactement les mêmes prompts, condition nécessaire pour comparer deux runs.
 """
+
+from __future__ import annotations
+
 import hashlib
 import random
 

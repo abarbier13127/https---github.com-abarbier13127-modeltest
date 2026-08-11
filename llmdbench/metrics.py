@@ -7,6 +7,9 @@ Le χ² permet de trancher objectivement « ce déséquilibre entre pods est-il 
 bruit ou une vraie asymétrie de routage ? » sans dépendre de scipy : la fonction
 de survie du χ² est implémentée ici (gamma incomplète régularisée, ~40 lignes).
 """
+
+from __future__ import annotations
+
 import math
 import statistics
 

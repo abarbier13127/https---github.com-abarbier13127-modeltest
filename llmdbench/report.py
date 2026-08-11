@@ -9,6 +9,9 @@ Convention de code retour, identique dans tous les scripts de la suite :
 `SKIP` ne fait jamais échouer : un cluster à 1 pod ne « rate » pas un test
 d'équilibrage, il n'a simplement rien à équilibrer.
 """
+
+from __future__ import annotations
+
 import csv
 import json
 import math

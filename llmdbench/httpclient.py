@@ -14,6 +14,9 @@ Pourquoi pas `urllib` comme dans `tests/qwen_client.py` ?
 Une `Session` = une connexion persistante = un « client » du point de vue du
 Gateway. Les moteurs de charge créent une Session par worker.
 """
+
+from __future__ import annotations
+
 import http.client
 import json
 import ssl

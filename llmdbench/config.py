@@ -13,6 +13,9 @@ Variables d'environnement reconnues :
     LLMD_INSECURE   "0" pour vérifier le certificat TLS (défaut : ignoré)
     KUBECONFIG      utilisé tel quel par la CLI `oc`
 """
+
+from __future__ import annotations
+
 import argparse
 import os
 

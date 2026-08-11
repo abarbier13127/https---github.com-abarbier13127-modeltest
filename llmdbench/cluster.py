@@ -13,6 +13,9 @@ Les métriques sont lues via le proxy de l'API server :
     oc get --raw /api/v1/namespaces/<ns>/pods/<pod>:<port>/proxy/metrics
 ce qui ne nécessite ni `curl` dans l'image, ni port-forward, ni Route.
 """
+
+from __future__ import annotations
+
 import json
 import os
 import shutil
