@@ -54,7 +54,7 @@ import sys
 # script tourne depuis n'importe où et quelle que soit l'invocation.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from llmdbench import config, httpclient, report  # noqa: E402
+from llmdbench import auth, config, httpclient, report  # noqa: E402
 
 JSON_EXPECT = "__json__"
 
@@ -103,16 +103,24 @@ LEVELS = {
 
 # --- jeton -------------------------------------------------------------------
 def resolve_token(args) -> tuple[str, str]:
-    """Renvoie (jeton, source). Jeton vide = appel anonyme assumé."""
+    """
+    Renvoie (jeton, source). Jeton vide = appel anonyme assumé.
+
+    `--token` et `--token-file` sont propres à ce script et gardent la priorité ;
+    au-delà, on délègue à `auth.resolve`, qui gère aussi `--api-key` et
+    l'échange `--user`/`--password` contre un jeton OAuth.
+    """
     if args.token:
         return args.token.strip(), "--token"
     if args.token_file:
         path = os.path.expanduser(args.token_file)
         with open(path, encoding="utf-8") as f:
             return f.read().strip(), f"fichier {path}"
-    if config.DEFAULT_API_KEY:
-        return config.DEFAULT_API_KEY, "$LLMD_API_KEY"
-    return "", ""
+    try:
+        return auth.resolve(args)
+    except auth.AuthError as e:
+        print(f"  ⚠️  authentification impossible : {e}")
+        return "", f"échec ({e})"
 
 
 # --- contrôle de contenu -----------------------------------------------------

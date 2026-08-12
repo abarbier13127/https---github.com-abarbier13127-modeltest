@@ -58,10 +58,18 @@ def summarize(results, wall: float) -> dict:
     per_tok = [r.latency / max(r.completion_tokens, 1) for r in ok]
     itl_all = [x for r in ok for x in r.itls]
 
+    # Une réponse HTTP 200 qui ne contient aucun token est un « succès » pour le
+    # transport et un échec pour l'utilisateur : sans ce décompte, un modèle qui
+    # se met à répondre du vide afficherait 0 % d'erreur et rien d'autre.
+    empty = [r for r in ok if r.completion_tokens <= 0]
+
     s = {
         "requests_ok": len(ok),
         "requests_err": len(ko),
         "error_rate": len(ko) / max(len(results), 1),
+        "requests_empty": len(empty),
+        "empty_rate": len(empty) / max(len(ok), 1),
+        "completion_tokens": dist(r.completion_tokens for r in ok),
         "wall_s": wall,
         "throughput_rps": len(ok) / wall if wall > 0 else 0.0,
         "output_tok": out_tok,
@@ -92,6 +100,12 @@ def print_summary(s: dict, prefix="  ") -> None:
           f"   erreurs : {s['requests_err']} ({100*s['error_rate']:.1f} %)")
     print(f"{prefix}débit          : {s['throughput_rps']:.2f} req/s"
           f"   |  {s['output_tok_per_s']:.0f} tok/s générés")
+    ct = s.get("completion_tokens") or {}
+    if ct.get("n"):
+        print(f"{prefix}tokens/réponse : P50={ct['p50']:.0f} min={ct['min']:.0f} "
+              f"max={ct['max']:.0f}"
+              + (f"   ⚠️  {s['requests_empty']} réponse(s) VIDE(s)"
+                 if s.get("requests_empty") else ""))
     if s["latency"].get("n"):
         print(f"{prefix}latence e2e    : {fmt_dist(s['latency'])}")
     if s["ttft"].get("n"):

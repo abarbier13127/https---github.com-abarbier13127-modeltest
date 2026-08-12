@@ -58,6 +58,17 @@ CHAT_PROMPTS = [
 # ~1.3 token par mot en français comme en anglais sur les tokenizers BPE usuels.
 _TOKENS_PER_WORD = 1.3
 
+# Facteur de correction entre les tokens *demandés* et les tokens *réellement*
+# comptés par le serveur. Mesuré le 2026-08-12 sur qwen-gpu : 64 → 144,
+# 2048 → 2928, 8192 → 11632, 20000 → 28392, soit ~1.4×. L'estimation de
+# 1.3 token/mot ci-dessus est donc trop optimiste pour du français ; on majore
+# volontairement pour que le contrôle de fenêtre de contexte se trompe du bon
+# côté (mieux vaut refuser un prompt limite que de le laisser produire un 400).
+TOKEN_ESTIMATE_FACTOR = 1.45
+
+# Surcoût fixe : ligne d'identifiant, consigne finale, balisage de rôle.
+_WRAPPER_TOKENS = 40
+
 
 def _filler(rng: random.Random, n_tokens: int) -> str:
     n_words = max(1, int(n_tokens / _TOKENS_PER_WORD))
@@ -116,6 +127,43 @@ class Workload:
         tail = _filler(rng, max(8, self.prompt_tokens // 4))
         return (self._prefixes[k] + f"Question {i} : {tail}\n"
                 "Réponds brièvement en t'appuyant sur le contexte."), f"pfx{k}"
+
+    def estimated_prompt_tokens(self) -> int:
+        """
+        Estimation **haute** du nombre de tokens réels du plus long prompt produit.
+
+        Sert au contrôle a priori de la fenêtre de contexte : sans lui, un prompt
+        trop long fait échouer chaque requête en HTTP 400, donc 100 % d'erreurs,
+        et le test est rouge sans jamais dire pourquoi.
+        """
+        if self.kind == "chat":
+            return 32                       # prompts fixes, tous très courts
+        if self.kind == "unique":
+            base = self.prompt_tokens
+        else:                               # shared : préfixe + queue
+            base = self.prefix_tokens + max(8, self.prompt_tokens // 4)
+        return int(base * TOKEN_ESTIMATE_FACTOR) + _WRAPPER_TOKENS
+
+    def limiting_option(self) -> str:
+        """Nom de l'option à réduire si le contexte ne tient pas."""
+        if self.kind == "shared":
+            return "--prefix-tokens"
+        return "--prompt-tokens"
+
+    def max_setting_for(self, window: int, max_tokens: int) -> int:
+        """
+        Plus grande valeur de `limiting_option()` qui tienne dans `window`.
+
+        Inverse de `estimated_prompt_tokens` : on retire le budget de génération
+        et le surcoût d'encadrement, puis on divise par le facteur de correction.
+        """
+        budget = window - max_tokens - _WRAPPER_TOKENS
+        if budget <= 0:
+            return 0
+        base = int(budget / TOKEN_ESTIMATE_FACTOR)
+        if self.kind == "shared":
+            base -= max(8, self.prompt_tokens // 4)
+        return max(0, base)
 
     def fingerprint(self) -> str:
         """Empreinte courte du workload, à inscrire dans les rapports."""

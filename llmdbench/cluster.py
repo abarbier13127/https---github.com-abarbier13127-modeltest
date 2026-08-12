@@ -33,7 +33,9 @@ KEY_METRICS = {
     "gen_tokens": ["vllm:generation_tokens_total"],
     "running": ["vllm:num_requests_running"],
     "waiting": ["vllm:num_requests_waiting"],
-    "kv_usage": ["vllm:gpu_cache_usage_perc"],
+    # `gpu_cache_usage_perc` a été renommé `kv_cache_usage_perc` dans les vLLM
+    # récents (v0.17 sur ce cluster n'expose que le nouveau nom). Garder les deux.
+    "kv_usage": ["vllm:kv_cache_usage_perc", "vllm:gpu_cache_usage_perc"],
     "preemptions": ["vllm:num_preemptions_total"],
     "prefix_queries": ["vllm:prefix_cache_queries_total", "vllm:gpu_prefix_cache_queries"],
     "prefix_hits": ["vllm:prefix_cache_hits_total", "vllm:gpu_prefix_cache_hits"],

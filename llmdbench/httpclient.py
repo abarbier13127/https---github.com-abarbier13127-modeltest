@@ -63,7 +63,80 @@ class Result:
 
 
 class HTTPError(Exception):
-    pass
+    """Erreur HTTP portant son code : indispensable pour distinguer un 401 d'un
+    échec de connexion (cf. `describe_status`)."""
+
+    def __init__(self, message, status=0):
+        super().__init__(message)
+        self.status = status
+
+
+# Interprétation des codes rencontrés en pratique sur un endpoint d'inférence.
+# Un endpoint protégé qui répond 401 est *joignable* : confondre les deux envoie
+# le diagnostic vers la Route et le DNS alors que le problème est le jeton.
+STATUS_HINTS = {
+    0: "aucune réponse du serveur : vérifier l'URL, le DNS (/etc/hosts), la "
+       "Route et que le pod est Ready",
+    401: "authentification requise ou jeton expiré : fournir --api-key ou "
+         "exporter LLMD_API_KEY",
+    403: "jeton accepté mais autorisation refusée : droits insuffisants sur le "
+         "modèle (SubjectAccessReview)",
+    404: "chemin introuvable : l'URL ne pointe pas sur une API "
+         "OpenAI-compatible, ou il manque un préfixe de chemin",
+    429: "endpoint joignable mais débit limité (rate limit)",
+    502: "passerelle joignable mais backend injoignable : pod non Ready ?",
+    503: "endpoint joignable mais backend indisponible : modèle en cours de "
+         "chargement, ou pod non Ready",
+    504: "délai dépassé côté passerelle : backend trop lent ou bloqué",
+}
+
+
+def describe_status(status: int) -> str:
+    """Message d'aide pour un code de retour, orienté vers la cause probable."""
+    if status in STATUS_HINTS:
+        return STATUS_HINTS[status]
+    if 200 <= status < 400:
+        return "réponse normale"
+    return f"réponse inattendue (HTTP {status})"
+
+
+def explain_auth(status: int, api_key=None, auth_error=None) -> str:
+    """
+    `describe_status` enrichi du cas « aucun jeton transmis ».
+
+    Trois situations distinctes derrière un même 401, qu'il faut séparer sous
+    peine d'envoyer l'utilisateur sur une fausse piste :
+
+    - l'obtention du jeton a échoué en amont (`auth_error` renseigné : mauvais
+      mot de passe, découverte OAuth impossible…) → on renvoie à cette cause,
+      déjà signalée, sans en inventer une autre ;
+    - aucun jeton n'a été fourni du tout, alors qu'aucune erreur n'a été
+      rencontrée : le cas typique est `--api-key=$(oc create token admin …)` où
+      la substitution échoue silencieusement (l'erreur part sur stderr) et passe
+      une chaîne vide — sachant que `oc create token` n'existe que pour un
+      ServiceAccount, jamais pour un utilisateur ;
+    - un jeton a bien été envoyé mais il est refusé → le message générique suffit.
+    """
+    msg = describe_status(status)
+    if status not in (401, 403) or api_key:
+        return msg
+    if auth_error:
+        return msg + f" | l'obtention du jeton a échoué en amont : {auth_error}"
+    return msg + (" | aucun jeton n'a été transmis (valeur vide) : une "
+                  "substitution `$(oc create token …)` a-t-elle échoué ? "
+                  "`oc create token` ne fonctionne que pour un ServiceAccount, "
+                  "pas pour un utilisateur — pour un utilisateur, employer "
+                  "--user/--password")
+
+
+def reachable(status: int) -> bool:
+    """
+    Vrai si le serveur a répondu quelque chose, même un refus.
+
+    Sert à ne pas déclarer « injoignable » un endpoint qui répond 401/403 : ce
+    sont des réponses, donc la preuve que le chemin réseau fonctionne.
+    """
+    return status > 0
 
 
 class Session:
@@ -191,26 +264,54 @@ class Session:
         resp = self._request("GET", path)
         raw = resp.read()
         if resp.status >= 400:
-            raise HTTPError(f"{resp.status} sur {path}: {raw[:200]!r}")
+            raise HTTPError(f"{resp.status} sur {path}: {raw[:200]!r}",
+                            status=resp.status)
         return json.loads(raw or b"{}")
 
     def list_models(self) -> list[str]:
         return [m["id"] for m in self.get_json("/v1/models").get("data", [])]
 
+    def context_window(self, model=None):
+        """
+        `max_model_len` publié par /v1/models, ou None si l'information manque.
+
+        vLLM expose la taille de fenêtre du modèle dans la description renvoyée
+        par /v1/models ; ça permet de vérifier *avant* d'envoyer qu'un prompt
+        tient, plutôt que de récolter un HTTP 400 par requête. Ne lève jamais :
+        l'absence de l'information n'est pas une panne, juste un contrôle en
+        moins.
+        """
+        try:
+            data = self.get_json("/v1/models").get("data", [])
+        except Exception:  # noqa: BLE001
+            return None
+        want = model or self.model
+        for m in data:
+            if m.get("id") == want:
+                try:
+                    return int(m["max_model_len"])
+                except (KeyError, TypeError, ValueError):
+                    return None
+        return None
+
     def health(self) -> tuple[bool, int]:
-        """Sonde /health (vLLM) ; retombe sur /v1/models si absente."""
-        try:
-            resp = self._request("GET", "/health")
-            resp.read()
-            if resp.status < 400:
-                return True, resp.status
-        except Exception:  # noqa: BLE001 — sonde best-effort
-            self.close()
-        try:
-            self.list_models()
-            return True, 200
-        except Exception as e:  # noqa: BLE001
-            return False, getattr(e, "status", 0)
+        """
+        Sonde /health (vLLM), puis /v1/models si la première est absente.
+
+        Retourne (utilisable, status). `status` est le **vrai code HTTP** ; 0 est
+        réservé au cas où aucune réponse n'a été obtenue. Un endpoint protégé
+        renvoie donc (False, 401) et non (False, 0) : l'appelant peut alors dire
+        « jeton manquant » au lieu de « injoignable ». Cf. `describe_status` et
+        `reachable`.
+        """
+        # `raw` ne lève jamais : ici un refus est une information, pas une panne.
+        first = self.raw("GET", "/health")
+        if first["error"] is None and first["status"] < 400:
+            return True, first["status"]
+        second = self.raw("GET", "/v1/models")
+        if second["error"] is None and second["status"] < 400:
+            return True, second["status"]
+        return False, second["status"] or first["status"] or 0
 
     def chat(self, prompt: str, max_tokens: int = 64, temperature: float = 0.0,
              stream: bool = True, group: str | None = None,
