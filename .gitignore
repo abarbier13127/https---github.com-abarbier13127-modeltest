@@ -1,7 +1,8 @@
 /call_model copy.txt
 /llmdbench.zip
 /t01_smoke.py
-/tools
+/tools/*
+!/tools/mock_oauth.py
 .venv39/lib64
 .venv39/pyvenv.cfg
 .venv39/bin/activate
