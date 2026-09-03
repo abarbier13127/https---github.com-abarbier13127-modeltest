@@ -223,10 +223,14 @@ script s'arrête en listant les noms exacts :
 
 .venv39/bin/python oauth_web_flow.py -u user --idp htpasswd_provider
 
-# sans terminal, et en vérifiant que le jeton obtenu est réellement utilisable
+# sans terminal
 echo '<motdepasse>' | .venv39/bin/python oauth_web_flow.py \
-  -u user --idp htpasswd_provider --password-stdin \
-  --api-server https://api.ds.alf.corp:6443
+  -u user --idp htpasswd_provider --password-stdin
+
+# en vérifiant en plus que le jeton obtenu est réellement accepté par le
+# cluster — c'est le seul cas où une requête sort du serveur OAuth
+.venv39/bin/python oauth_web_flow.py -u user --idp htpasswd_provider \
+  --check --api-server https://api.ds.alf.corp:6443
 
 # trace de chaque requête et redirection + page HTML brute conservée
 .venv39/bin/python oauth_web_flow.py -u user --idp htpasswd_provider \
@@ -264,6 +268,22 @@ python3 oauth_web_flow.py -u jdoe --idp adfs \
 En cas d'arrêt sur une page inconnue, le script **rend cette page** et
 l'enregistre si `--html` est passé : c'est ce qui permet de trouver les noms de
 champs à donner à `--user-field` / `--password-field` / `--field`.
+
+#### Ce qui est contacté, et rien d'autre
+
+Le script parle **au serveur OAuth uniquement** — plus, le cas échéant, l'IdP
+externe vers lequel celui-ci redirige. L'API server n'est appelé que dans deux
+cas, tous deux explicites :
+
+- `--api-server` **sans** `--oauth-url` : un seul GET non authentifié sur
+  `/.well-known/oauth-authorization-server` pour découvrir l'endpoint ;
+- `--check` : valide le jeton obtenu par un
+  `GET /apis/user.openshift.io/v1/users/~`.
+
+Donner `--oauth-url` (ou laisser déduire la base depuis `--url`) et ne pas
+passer `--check` garantit qu'aucune requête ne part ailleurs que vers l'OAuth.
+`--verbose` liste les hôtes réellement contactés, ce qui permet de le vérifier.
+La ligne `appels :` de l'en-tête le rappelle à chaque exécution.
 
 La base du serveur OAuth est déduite de `--url` (`*.apps.<domaine>` →
 `oauth-openshift.apps.<domaine>`), ou découverte via `--api-server`

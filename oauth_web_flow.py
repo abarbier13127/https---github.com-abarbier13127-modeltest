@@ -29,6 +29,13 @@ même vers un autre domaine — cas d'un IdP externe qui héberge sa page de log
 `--user-field`, `--password-field` et `--field` couvrent les formulaires que la
 détection ne reconnaîtrait pas.
 
+**Seul le serveur OAuth est contacté** (plus, le cas échéant, l'IdP externe vers
+lequel il redirige). L'API server n'est appelé que dans deux cas, tous deux
+explicites : `--api-server` sans `--oauth-url`, pour découvrir l'endpoint via
+`/.well-known/oauth-authorization-server` ; et `--check`, qui valide le jeton
+obtenu par un `GET /apis/user.openshift.io/v1/users/~`. Fournir `--oauth-url`
+suffit à garantir qu'aucune requête ne part ailleurs que vers l'OAuth.
+
 À ne pas confondre avec `--user/--password` des tests t0x : ceux-là utilisent le
 flux *challenging client* (un GET avec en-tête Basic), qui ne passe ni par la
 page de login ni par les cookies. Ce script-ci teste la chaîne complète —
@@ -48,9 +55,9 @@ Usage :
 from __future__ import annotations
 
 import argparse
-import getpass
 import os
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -194,8 +201,11 @@ def main() -> int:
                    help="vérifier le certificat TLS (défaut: ignoré)")
     f.add_argument("--timeout", type=float, default=30.0,
                    help="timeout HTTP par requête, en secondes")
-    f.add_argument("--no-check", action="store_true",
-                   help="ne pas vérifier le jeton auprès de l'API server")
+    f.add_argument("--check", action="store_true",
+                   help="vérifier le jeton obtenu auprès de l'API server "
+                        "(GET /apis/user.openshift.io/v1/users/~). C'est le "
+                        "SEUL appel hors du serveur OAuth, et il faut le "
+                        "demander explicitement ; il exige --api-server")
 
     o = ap.add_argument_group("sortie")
     o.add_argument("--verbose", action="store_true",
@@ -243,7 +253,15 @@ def main() -> int:
     print(f"  client        : {args.client_id}   scope={args.scope}")
     if args.idp:
         print(f"  IdP           : {args.idp}")
-    print(f"  TLS           : {'non vérifié' if args.insecure else 'vérifié'}\n")
+    print(f"  TLS           : {'non vérifié' if args.insecure else 'vérifié'}")
+    if args.check and args.api_server:
+        appels = f"serveur OAuth, puis {args.api_server} pour --check"
+    elif args.check:
+        appels = "serveur OAuth uniquement (--check inopérant sans --api-server)"
+    else:
+        appels = "serveur OAuth uniquement"
+    print(f"  appels        : {appels}")
+    print()
 
     try:
         password = auth.read_password(args)
@@ -289,7 +307,14 @@ def main() -> int:
             for code, newurl in hops:
                 print(f"       {code} → {newurl}")
             print(f"       {status}")
+        hotes = []
+        for _m, u, _s, hops in br.trace:
+            for candidat in [u] + [n for _c, n in hops]:
+                h = urllib.parse.urlparse(candidat).netloc
+                if h and h not in hotes:
+                    hotes.append(h)
         print(f"  cookies : {', '.join(br.cookies) or 'aucun'}")
+        print(f"  hôtes contactés : {', '.join(hotes)}")
 
     # -- la page de sortie ----------------------------------------------------
     det = oauthweb.token_details(page)
@@ -308,19 +333,22 @@ def main() -> int:
         print("  ⚠️  aucun jeton `sha256~…` trouvé dans la page finale.")
 
     # -- le jeton fonctionne-t-il vraiment ? ----------------------------------
+    # Hors --check, rien ne sort du serveur OAuth : c'est la garantie que ce
+    # script teste bien la chaîne d'authentification, et elle seule.
     identite = None
-    if tok and not args.no_check and args.api_server:
-        try:
-            identite = oauthweb.whoami(args.api_server, tok,
-                                       insecure=args.insecure,
-                                       timeout=args.timeout)
-            print(f"  identité: {identite['name']}  "
-                  f"(groupes : {', '.join(identite['groups']) or '-'})")
-        except oauthweb.FlowError as e:
-            print(f"  ⚠️  vérification du jeton impossible : {e}")
-    elif tok and not args.no_check:
-        print("  (vérification du jeton non faite : passer --api-server "
-              "https://api.<domaine>:6443)")
+    if tok and args.check:
+        if not args.api_server:
+            print("  ⚠️  --check sans --api-server : la vérification du jeton "
+                  "est impossible (aucune URL d'API server connue)")
+        else:
+            try:
+                identite = oauthweb.whoami(args.api_server, tok,
+                                           insecure=args.insecure,
+                                           timeout=args.timeout)
+                print(f"  identité: {identite['name']}  "
+                      f"(groupes : {', '.join(identite['groups']) or '-'})")
+            except oauthweb.FlowError as e:
+                print(f"  ⚠️  vérification du jeton impossible : {e}")
 
     # -- artefacts ------------------------------------------------------------
     if args.html:

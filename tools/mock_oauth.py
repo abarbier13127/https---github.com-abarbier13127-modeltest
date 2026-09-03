@@ -14,7 +14,7 @@ Compte de test : jdoe / s3cret.
     python3 tools/mock_oauth.py 8081 &
     python3 oauth_web_flow.py --oauth-url http://127.0.0.1:8081 --list-idp
     echo s3cret | python3 oauth_web_flow.py --oauth-url http://127.0.0.1:8081 \
-        -u jdoe --password-stdin --no-check --idp ldap_corp
+        -u jdoe --password-stdin --idp ldap_corp
 
 Pour simuler un IdP hébergé sur **une autre origine** (Keycloak séparé), lancer
 une seconde instance et la désigner par $MOCK_EXT :
