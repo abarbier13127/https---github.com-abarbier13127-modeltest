@@ -13,6 +13,7 @@ Les seules dépendances externes sont facultatives et hors-processus :
 Modules :
   config      constantes, résolution d'endpoint, arguments CLI communs
   auth        jeton Bearer : fourni, ou obtenu par OAuth (user/mot de passe)
+  oauthweb    parcours navigateur complet jusqu'à /oauth/token/display
   httpclient  client HTTP keep-alive + streaming SSE (TTFT / ITL)
   workload    générateurs de prompts (unique, préfixe partagé, conversation)
   loadgen     moteurs de charge boucle fermée (workers) et ouverte (Poisson)
@@ -26,6 +27,7 @@ from __future__ import annotations
 __version__ = "1.0.0"
 __all__ = [
     "auth",
+    "oauthweb",
     "config",
     "httpclient",
     "workload",

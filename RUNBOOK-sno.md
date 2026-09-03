@@ -5,6 +5,11 @@ par opposition au mock local documenté dans l'en-tête de `tools/mock_vllm.py`.
 
 Établi et vérifié le **2026-08-12**.
 
+> 📊 **[Annexe — lecture des tableaux de sortie](#annexe--lecture-des-tableaux-de-sortie)**
+> — signification de chaque colonne (`conc`, `TTFT`, `TPOT`, `effic.`, `tok/s`…)
+> pour les deux tableaux produits par la suite : le balayage de `t02_load.py` et
+> le mini-bench de `call_model.py`.
+
 ## Contexte du déploiement
 
 | Élément | Valeur |
@@ -181,6 +186,102 @@ La propagation est immédiate, le sidecar ne cache pas ses décisions.
 Rappel : le verbe du SubjectAccessReview est `get` quelle que soit la méthode
 HTTP. Un `POST /v1/chat/completions` déclenche le même `get`, donc accorder
 `get` accorde l'inférence complète.
+
+### e. Le parcours navigateur complet (`oauth_web_flow.py`)
+
+Les points b et c empruntent le flux *challenging client* : un seul GET avec un
+en-tête `Authorization: Basic`. C'est rapide, mais cela court-circuite tout ce
+qui fait l'authentification d'un vrai utilisateur — pas de page de login, pas de
+cookie de session, pas de jeton CSRF, pas d'écran de consentement.
+
+`oauth_web_flow.py` rejoue le parcours **navigateur**, en HTTP pur (l'équivalent
+d'une série de `curl -c/-b -L`), et rend la page `/oauth/token/display` telle
+que l'utilisateur l'aurait vue :
+
+```
+GET  /oauth/authorize?client_id=openshift-browser-client
+                     &response_type=code&redirect_uri=…/oauth/token/display
+  → écran de choix de l'IdP, puis 302 vers sa page de login
+POST <page de login>       identifiant + mot de passe + csrf (+ cookie de session)
+  → 302 /oauth/authorize?…            retour au flux
+  → 302 /oauth/token/display?code=…   le serveur échange le code lui-même
+GET  /oauth/token/display             ← la page rendue en sortie
+```
+
+**`oc` n'est jamais appelé** et le KUBECONFIG n'est jamais touché.
+
+#### Sur le SNO `ds`
+
+Le cluster déclare deux fournisseurs, donc `--idp` est obligatoire — sans lui le
+script s'arrête en listant les noms exacts :
+
+```bash
+# ce que le cluster propose (aucun identifiant demandé)
+.venv39/bin/python oauth_web_flow.py --list-idp
+#   --idp kube:admin               (libellé affiché : kube:admin)
+#   --idp htpasswd_provider        (libellé affiché : htpasswd_provider)
+
+.venv39/bin/python oauth_web_flow.py -u user --idp htpasswd_provider
+
+# sans terminal, et en vérifiant que le jeton obtenu est réellement utilisable
+echo '<motdepasse>' | .venv39/bin/python oauth_web_flow.py \
+  -u user --idp htpasswd_provider --password-stdin \
+  --api-server https://api.ds.alf.corp:6443
+
+# trace de chaque requête et redirection + page HTML brute conservée
+.venv39/bin/python oauth_web_flow.py -u user --idp htpasswd_provider \
+  --verbose --html out/token-display.html --json out/oauth-flow.json
+```
+
+#### Contre un autre cluster ou un autre IdP
+
+Rien n'est codé en dur pour htpasswd ni pour `ds`. `--idp` prend le nom déclaré
+dans `oauth/cluster`, quel que soit son type (LDAP, OIDC/Keycloak, GitHub,
+ADFS…), et le formulaire est analysé plutôt que supposé :
+
+- les noms des champs sont **détectés** (`username`, `email`, `UserName`,
+  `uid`, `login`…), et les champs cachés du formulaire (CSRF, `then`, domaine
+  par défaut) sont réémis tels quels ;
+- les IdP **en deux temps** (identifiant sur un premier écran, mot de passe sur
+  le suivant) sont gérés ;
+- les redirections sont suivies **même vers un autre domaine** : un IdP externe
+  qui héberge sa propre page de login fonctionne, cookies compris ;
+- l'écran de **consentement** est validé automatiquement s'il apparaît.
+
+```bash
+# autre cluster, IdP LDAP
+python3 oauth_web_flow.py --oauth-url https://oauth-openshift.apps.autre.corp \
+  -u jdoe --idp ldap_provider
+
+# ou en laissant découvrir l'endpoint depuis l'API server
+python3 oauth_web_flow.py --api-server https://api.autre.corp:6443 -u jdoe --idp mon-oidc
+
+# formulaire non reconnu : forcer les champs, en ajouter un
+python3 oauth_web_flow.py -u jdoe --idp adfs \
+  --user-field UserName --password-field Password --field Domain=CORP
+```
+
+En cas d'arrêt sur une page inconnue, le script **rend cette page** et
+l'enregistre si `--html` est passé : c'est ce qui permet de trouver les noms de
+champs à donner à `--user-field` / `--password-field` / `--field`.
+
+La base du serveur OAuth est déduite de `--url` (`*.apps.<domaine>` →
+`oauth-openshift.apps.<domaine>`), ou découverte via `--api-server`
+(`/.well-known/oauth-authorization-server`), ou imposée par `--oauth-url`.
+Le login et le mot de passe sont demandés interactivement s'ils manquent ; les
+sources du mot de passe sont les mêmes qu'en b. `$LLMD_IDP`, `$LLMD_OAUTH_URL`
+et `$LLMD_API_SERVER` évitent de les répéter.
+
+Codes retour : `0` jeton affiché, `1` parcours cassé (identifiants refusés,
+page inattendue, serveur injoignable), `2` impossible de démarrer (pas d'URL
+OAuth, pas d'utilisateur).
+
+Ce que ce test couvre et que les autres ne voient pas : la Route
+`oauth-openshift` et son certificat, le template de login servi par l'IdP, la
+session par cookie, le CSRF, la sélection d'IdP et l'écran de consentement.
+Utile après une rotation de certificats ou un changement d'IdP, où le flux
+challenging peut continuer de marcher alors que la connexion via la console est
+cassée.
 
 ## 3. Contrôle préalable
 
@@ -428,14 +529,56 @@ prompts entre les paliers.
 
 Une fois la capacité connue, la boucle ouverte est le seul mode honnête (en
 boucle fermée, un serveur qui ralentit reçoit spontanément moins de trafic et ne
-peut jamais montrer un effondrement). Mettre dans `--rate` environ **70 % du
-débit maximal mesuré** :
+peut jamais montrer un effondrement).
+
+### D'où vient la valeur de `--rate`
+
+**Du débit au genou, pas du débit maximal.** Prendre dans la sortie de l'étape 4
+la ligne `genou de saturation : concurrence N`, puis le `req/s` de ce palier N
+dans le tableau — c'est-à-dire `levels[].throughput_rps` pour `concurrency == knee`
+dans le JSON. Mettre **70 % de cette valeur** dans `--rate`.
 
 ```bash
-.venv39/bin/python t02_load.py --no-sweep --rate 10 --duration 60 --max-tokens 64 \
-  --max-inflight 32 --slo-ttft 1.0 --slo-p95 5.0 \
+# Extraction directe depuis le JSON de l'étape 4
+.venv39/bin/python -c "
+import json; d=json.load(open('out/t02-sno-high.json'))
+k=[s for s in d['levels'] if s['concurrency']==d['knee']][0]
+print('genou conc=%d  %.2f req/s  -> --rate %.0f' % (
+    d['knee'], k['throughput_rps'], 0.7*k['throughput_rps']))"
+```
+
+⚠️ **Ne pas se baser sur le « débit maximal observé ».** Deux raisons, l'une
+logique et l'autre méthodologique :
+
+1. Le maximum est atteint **au-delà** du genou, dans un régime où le débit par
+   client s'est déjà effondré. Sur le run du 2026-08-12, 70 % du maximum
+   (39,36 req/s) donne 27,6 req/s, soit **plus** que le débit du genou lui-même
+   (25,06 req/s) : on demanderait au serveur de tenir en permanence un régime
+   qu'il ne soutient déjà plus. Ce n'est pas une marge, c'est un déficit.
+2. Le maximum n'est un plafond que si le balayage a trouvé le mur. Sur ce même
+   run, il n'y avait **aucune erreur** au dernier palier et le débit montait
+   encore ×1,57 entre conc 16 et 32 : `39,36` ne dit pas où sature le serveur,
+   il dit où on a cessé de mesurer. Relancer avec `--levels 32,64,128` change la
+   valeur sans que la plateforme ait bougé.
+
+Le genou, lui, est un point de bascule réellement mesuré : le dernier palier où
+chaque client reçoit encore au moins `--knee-tolerance` (0,70 par défaut) du
+débit par client de la référence.
+
+### Le run
+
+```bash
+# --rate 17 = 70 % des 25,06 req/s du genou (concurrence 16), run du 2026-08-12
+.venv39/bin/python t02_load.py --no-sweep --rate 17 --duration 60 --max-tokens 64 \
+  --max-inflight 32 --slo-ttft 0.5 --slo-p95 1.5 \
   --json out/t02-sno-slo.json
 ```
+
+**Calibrer les SLO sur les latences déjà observées**, sinon le contrôle ne teste
+rien. Les valeurs ci-dessus (TTFT P95 ≤ 0,5 s, latence P95 ≤ 1,5 s) encadrent les
+pires mesures de l'étape 4 (164 ms et 0,87 s) avec une marge d'environ ×2. Un
+`--slo-p95 5.0` sur ce déploiement passerait quoi qu'il arrive et ne signalerait
+aucune régression.
 
 ⚠️ **`--max-inflight` n'est pas cosmétique.** Sans borne, `run_open` alloue
 `10×rate` workers : un worker est donc toujours libre, le retard d'admission
@@ -668,3 +811,149 @@ Identiques dans tous les scripts, pour un enchaînement en shell :
 `SKIP` ne fait jamais échouer : un cluster à un seul pod ne « rate » pas un test
 d'équilibrage, il n'a simplement rien à équilibrer. `WARN` non plus : c'est une
 observation à regarder, pas un échec.
+
+---
+
+# Annexe — lecture des tableaux de sortie
+
+La suite produit **deux tableaux différents**, qu'il est facile de confondre.
+Ils ne répondent pas à la même question et ne se lisent pas de la même façon.
+
+| | `call_model.py` | `t02_load.py` |
+|---|---|---|
+| Colonnes | `niveau · appels · prompt→gén. · latence · TTFT · TPOT · tok/s` | `conc · req/s · tok/s · TTFT P50/P95 · lat P50/P95 · err % · effic.` |
+| Axe du tableau | la **difficulté du prompt** | la **concurrence** |
+| Concurrence | 1 (appels séquentiels) | 1, 2, 4, 8… |
+| Statistiques | **moyennes** | percentiles P50/P90/P95/P99 |
+| Question posée | « le modèle répond-il, et à quel coût selon le type de requête ? » | « jusqu'où ça monte, où est le genou ? » |
+
+## Tableau 1 — `t02_load.py`, balayage de concurrence
+
+Produit par `print_table()` (`t02_load.py:318`), une ligne par palier, phase
+boucle fermée uniquement.
+
+| Colonne | Source | Unité | Sens | Bon signe |
+|---|---|---|---|---|
+| `conc` | `--levels` | clients | Nombre de clients qui bouclent en permanence (boucle fermée : dès qu'une réponse arrive, la suivante part) | — c'est la variable qu'on fait monter |
+| `req/s` | `throughput_rps` = requêtes OK / durée | req/s | Débit **utile** ; les erreurs ne comptent pas | croît avec `conc`, puis plafonne |
+| `tok/s` | `output_tok_per_s` | tokens/s | Tokens **générés** par seconde, agrégé tous clients. La vraie mesure du travail GPU | croît puis plafonne ; s'il **baisse** = emballement |
+| `TTFT P50` | `ttft.p50` ×1000 | ms | *Time To First Token* : délai avant le 1er token. Mesure le **prefill** + l'attente en file | monte doucement, explose au passage du genou |
+| `TTFT P95` | `ttft.p95` | ms | Le même au 95ᵉ percentile : ce que vivent les 5 % les moins chanceux | l'écart P95/P50 dit la variabilité de la file |
+| `lat P50` | `latency.p50` | **s** (pas ms) | Latence end-to-end médiane, prefill + decode | à lire avec `tokens/réponse` |
+| `lat P95` | `latency.p95` | s | Idem P95 | c'est cette colonne que vise `--slo-p95` |
+| `err %` | `error_rate` ×100 | % | Requêtes en échec (HTTP ≠ 200, timeout, reset) | ≤ `--max-error-rate` (défaut 2 %) ; au-delà le balayage **s'arrête** |
+| `effic.` | `rps_per_client` du palier ÷ celui du palier le plus bas | ratio 0→1 | **Efficacité** : chaque client obtient-il encore le même service qu'en solo ? | 1.0 = parfait. Le **genou** est le dernier palier ≥ `--knee-tolerance` (0.7) |
+
+Les deux lignes sous le tableau : **débit maximal observé** (palier où `req/s`
+culmine) et **genou de saturation** (capacité exploitable ; au-delà, ajouter des
+clients allonge les files sans produire plus de travail).
+
+⚠️ Un palier qui dépasse `--max-error-rate` ne peut pas être le genou
+(`find_knee:288`) : un débit obtenu en jetant des requêtes n'est pas une capacité.
+
+### Le résumé affiché avant chaque ligne du tableau
+
+`metrics.print_summary()` (`llmdbench/metrics.py:97`), pour chaque palier :
+
+| Ligne | Signification |
+|---|---|
+| `requêtes OK : n / total   erreurs : k (x %)` | Volume et taux d'échec |
+| `débit : X req/s \| Y tok/s générés` | Les deux faces du débit |
+| `tokens/réponse : P50 / min / max` | Longueur des réponses. **Indispensable** : la latence e2e n'est comparable entre paliers que si cette valeur est stable. `⚠️ n réponse(s) VIDE(s)` = des HTTP 200 sans aucun token — succès pour le transport, échec réel (`empty_rate`) |
+| `latence e2e : min/moy/P50/P90/P95/P99/max` | Distribution complète, en secondes |
+| `TTFT : P50 / P90 / P99 ms` | Prefill + attente |
+| `TPOT (decode) : P50 / P99 ms/tok` | *Time Per Output Token* = latence ÷ tokens générés. Coût moyen d'un token en decode |
+| `ITL inter-tok : P50 / P99 ms` | *Inter-Token Latency* : l'intervalle **réel mesuré** entre deux tokens du flux SSE. TPOT est une moyenne par requête (le TTFT y est dilué), ITL est la mesure directe de la fluidité perçue. Un ITL P99 élevé = à-coups visibles |
+| `! k× <erreur>` | Top 5 des messages d'erreur distincts |
+
+**TPOT vs ITL** — c'est la confusion classique : TPOT lisse, ITL montre les
+pauses (préemption, changement de batch).
+
+### Le bloc dégradation
+
+`degradation()` / `check_degradation()` (`t02_load.py:179`), entre le premier et
+le dernier palier exploitable :
+
+| Champ | Sens |
+|---|---|
+| `concurrency_ratio` | Facteur d'augmentation de la charge (ex. ×8) |
+| `ttft_ratio` / `tpot_ratio` / `latency_ratio` | Facteur de dégradation du P50 correspondant |
+| `superlinear` | `tpot_ratio > concurrency_ratio`. **Le verdict clé** |
+
+Le point de comparaison n'est pas un seuil absolu, c'est la montée de charge
+elle-même :
+
+- **sous-linéaire** (TPOT ×2.9 pour charge ×8) → normal, le batching continu absorbe → `OK`
+- **sur-linéaire** (TPOT ×9 pour charge ×8) → le débit agrégé de tokens a **baissé** : ajouter des clients détruit du travail utile (préemptions, pression KV-cache) → `FAIL`, ou `WARN` si moins de 20 requêtes sur le palier le plus maigre
+- indépendamment, si `max(ttft_ratio, tpot_ratio) > --max-degradation` : `WARN` d'amplitude — le service répond toujours mais devient pénible, ce que `err %` ne montre jamais
+
+### Sorties propres à la boucle ouverte (`--rate`)
+
+`phase_open()` (`t02_load.py:454`). Les arrivées suivent un λ imposé et **ne
+ralentissent pas** quand le serveur ralentit — seul mode honnête pour valider un
+SLO.
+
+| Sortie | Sens |
+|---|---|
+| `rate_target` / `rate_achieved` | Cible vs réalisé. Contrôle : ratio ≥ 0.95 |
+| `retard d'ordonnancement P50/P95/P99` (`sched_delay`) | Écart entre heure de départ **prévue** et **réelle**. ⚠️ Informatif **uniquement** avec `--max-inflight` : sans borne, un worker est toujours libre, le retard reste nul par construction et l'attente se déplace dans la latence |
+| `latence dans le temps` (sparkline) | Mini-courbe une ligne, repère un décrochage |
+| `dérive de la latence` (`drift`) | P50 du premier tiers → P50 du dernier tiers, ordonnés par heure de **départ**. `ratio > --max-drift` (1.5) = le travail s'accumule. **LE signal du débit non soutenable** : la moyenne peut rester belle, c'est la *tendance* qui trahit |
+| `SLO TTFT P95 ≤ --slo-ttft` | Vérifié sur `ttft.p95`, en secondes |
+| `SLO latence P95 ≤ --slo-p95` | Vérifié sur `latency.p95`, en secondes |
+
+### Sorties cluster (introspection `oc` active)
+
+`saturation` (`_saturation:147`), par pod, deux natures de métriques :
+
+- **jauges** `running_peak` / `waiting_peak` / `kv_usage_peak` : maximum observé
+  **pendant** la rafale, échantillonné par un thread — les lire après ne montre
+  qu'un pod au repos. `waiting_peak > 0` = des requêtes ont attendu un slot de
+  batch, le GPU est le goulot. `kv_usage_peak` proche de 1 annonce les préemptions.
+- **compteur** `preemptions_delta` : différence entre les deux photos, donc les
+  préemptions imputables à **ce palier**.
+
+`balance_stats` (`metrics.py:161`), répartition entre pods : `imbalance` = max/min
+(1.0 parfait, sensible aux petits n) · `gini` = 0 parfait, 1 = tout sur un pod ·
+`chi2` / `p_value` : **`p < 0.01` = déséquilibre statistiquement significatif**,
+pas du bruit d'échantillonnage.
+
+## Tableau 2 — `call_model.py`, mini-bench 3 niveaux
+
+Produit par `print_table()` (`call_model.py:199`). Appels **séquentiels**, pas de
+concurrence : ce tableau caractérise le coût selon le type de requête.
+
+| Colonne | Source | Sens |
+|---|---|---|
+| `niveau` | clé de `LEVELS` (`call_model.py:64`) | Le **type de charge**, pas un palier de concurrence. Trois niveaux figés : `simple` (max_tokens 32 — capitale de la France, 17×23), `moyen` (160 — explication en 3 phrases, liste de 5 puces), `complexe` (512 — analyse d'incident rendue en JSON strict, procédure en 8 étapes) |
+| `appels` | `ok/n` | Réussis / tentés. 2 prompts par niveau × `--repeat` (défaut 1), donc `2/2` par défaut |
+| `prompt→gén.` | `prompt_tok` → `gen_tok`, **moyennes** | Tokens d'entrée → tokens produits. Le contexte qui rend les autres colonnes comparables : une latence de 8 s ne veut rien dire sans savoir si 30 ou 500 tokens ont été générés |
+| `latence` | `fmean(r.latency)` | Latence end-to-end **moyenne**, en secondes, prefill + decode |
+| `TTFT` | `fmean(r.ttft)` | *Time To First Token*, en ms. Coût du **prefill** : ingérer le prompt avant de sortir le 1er token. Monte avec `prompt_tok` |
+| `TPOT` | `fmean(r.tpot)` | *Time Per Output Token*, en ms/token. Coût du **decode**, un token à la fois. Inverse de la vitesse de frappe perçue |
+| `tok/s` | `fmean(completion_tokens / latency)` | Débit apparent **par requête**. ⚠️ Piège : c'est `tokens ÷ latence totale`, donc le TTFT est dilué dedans — sur le niveau `simple` (32 tokens) le prefill pèse lourd et ce chiffre est artificiellement bas. Ce n'est **pas** le `tok/s` de `t02`, qui est un débit agrégé serveur |
+
+Les marqueurs `✓` / `✗` / `·` affichés pendant l'exécution sont le **contrôle de
+contenu** (`content_ok:142`) : `paris` attendu dans la réponse, `391`, ou du JSON
+valide parsable. Un `✗` est signalé en `WARN`, pas en `FAIL` — c'est la qualité du
+modèle, pas celle de la plateforme.
+
+Les deux notes automatiques sous le tableau (`print_table:211`) :
+
+- `TTFT ×N entre le niveau le plus léger et le plus lourd` — si ratio > 3.
+  Diagnostic : coût de prefill dominant (contexte long, KV-cache, ou routage)
+- `TPOT ×N` — si ratio > 1.5. Diagnostic : le decode se dégrade avec la
+  longueur → contention GPU ou batching saturé
+
+La lecture clé : **TPOT devrait être à peu près constant entre les trois
+niveaux**. Le decode coûte le même prix par token qu'on en génère 32 ou 512. S'il
+grimpe, quelque chose se dégrade avec la longueur de séquence.
+
+## Deux réflexes de lecture
+
+1. `err %` à 0 ne veut pas dire que tout va bien — regarder `tokens/réponse`
+   (réponses vides) et `tpot_ratio` (dégradation).
+2. Le débit absolu n'est jamais jugé par les scripts : sans référence matérielle,
+   « 12 req/s » n'est ni bon ni mauvais. Les verdicts portent uniquement sur les
+   erreurs, l'existence d'un genou, la tenue du débit cible, et les SLO
+   explicitement demandés via `--slo-*`.
