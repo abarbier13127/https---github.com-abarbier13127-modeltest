@@ -47,7 +47,9 @@ d'une série de `curl -c/-b -L`). Stdlib pure, Python 3.9+.
 from __future__ import annotations
 
 import html as _html
+import http.client
 import http.cookiejar
+import socket
 import re
 import ssl
 import urllib.error
@@ -373,16 +375,50 @@ class Browser:
         self.timeout = timeout
         self.jar = http.cookiejar.CookieJar()
         self.trace = []  # [(méthode, url, statut, [redirections])]
+        self.peers = []  # adresses réellement contactées, dans l'ordre
         ctx = ssl.create_default_context()
         if insecure:
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
         self._hops = []
         self.opener = urllib.request.build_opener(
-            urllib.request.HTTPSHandler(context=ctx),
+            _HTTPHandler(_conn_class(http.client.HTTPConnection,
+                                     self._record_peer, False)),
+            _HTTPSHandler(_conn_class(http.client.HTTPSConnection,
+                                      self._record_peer, True), ctx),
             urllib.request.HTTPCookieProcessor(self.jar),
             _Redirects(self._hops),
         )
+
+    def _record_peer(self, host, sock, tls) -> None:
+        """
+        Note l'adresse au bout de la socket, une fois la connexion établie.
+
+        C'est l'IP réellement utilisée, pas une résolution refaite après coup :
+        derrière une Route OpenShift il y a souvent plusieurs enregistrements A
+        (routeurs multiples), et savoir lequel a répondu est précisément ce qui
+        sert au diagnostic.
+        """
+        try:
+            ip, port = sock.getpeername()[:2]
+        except OSError:
+            return
+        entry = {"host": host, "ip": ip, "port": port, "tls": bool(tls)}
+        if entry not in self.peers:
+            self.peers.append(entry)
+
+    def dns_records(self, host: str, port: int = 443) -> list:
+        """Toutes les adresses publiées pour un hôte (pour signaler un pool)."""
+        try:
+            infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+        except OSError:
+            return []
+        out = []
+        for info in infos:
+            ip = info[4][0]
+            if ip not in out:
+                out.append(ip)
+        return out
 
     def open(self, url: str, data=None) -> Page:
         """GET, ou POST si `data` (liste de paires) est fourni."""
@@ -426,6 +462,37 @@ class Browser:
     @property
     def cookies(self):
         return [c.name for c in self.jar]
+
+
+def _conn_class(base, record, tls):
+    """Classe de connexion identique à celle de la stdlib, mais qui se signale."""
+
+    class _Conn(base):
+        def connect(self):
+            super().connect()
+            record(self.host, self.sock, tls)
+
+    return _Conn
+
+
+class _HTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, conn_class):
+        super().__init__()
+        self._conn_class = conn_class
+
+    def http_open(self, req):
+        return self.do_open(self._conn_class, req)
+
+
+class _HTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, conn_class, context):
+        super().__init__(context=context)
+        self._conn_class = conn_class
+
+    def https_open(self, req):
+        # `context` porte déjà le choix de vérification TLS : inutile de
+        # repasser `check_hostname`, dont la signature bouge selon les versions.
+        return self.do_open(self._conn_class, req, context=self._context)
 
 
 class _Redirects(urllib.request.HTTPRedirectHandler):
@@ -496,7 +563,7 @@ def authorize_url(base: str, client_id: str = BROWSER_CLIENT_ID,
 def run_flow(base: str, user: str, password: str, *, insecure=True, timeout=30.0,
              client_id=BROWSER_CLIENT_ID, scope=DEFAULT_SCOPE, idp="",
              user_field="", password_field="", extra_fields=None,
-             max_steps=16, on_step=None):
+             max_steps=16, on_step=None, browser=None):
     """
     Déroule le parcours jusqu'à `/oauth/token/display` et retourne
     (Page finale, Browser).
@@ -513,7 +580,9 @@ def run_flow(base: str, user: str, password: str, *, insecure=True, timeout=30.0
     soit.
     """
     extra_fields = dict(extra_fields or {})
-    br = Browser(insecure=insecure, timeout=timeout)
+    # Le navigateur peut être fourni par l'appelant : il garde ainsi la trace
+    # des hôtes et des adresses contactés même si le parcours échoue.
+    br = browser or Browser(insecure=insecure, timeout=timeout)
     start = authorize_url(base, client_id=client_id, scope=scope, idp=idp)
     _notify(on_step, "start", None, url=start)
     page = br.open(start)  # la page atteinte est identifiée par la boucle
@@ -619,14 +688,15 @@ def _pick_idp(links, idp: str) -> dict:
 
 
 def list_idps(base: str, *, insecure=True, timeout=30.0,
-              client_id=BROWSER_CLIENT_ID, scope=DEFAULT_SCOPE) -> list:
+              client_id=BROWSER_CLIENT_ID, scope=DEFAULT_SCOPE,
+              browser=None) -> list:
     """
     Fournisseurs d'identité proposés par le cluster, sans aucun identifiant.
 
     Une liste vide signifie qu'un seul IdP est déclaré : OpenShift redirige
     alors directement vers sa page de login, sans écran de sélection.
     """
-    br = Browser(insecure=insecure, timeout=timeout)
+    br = browser or Browser(insecure=insecure, timeout=timeout)
     page = br.open(authorize_url(base, client_id=client_id, scope=scope))
     return page.idp_links
 

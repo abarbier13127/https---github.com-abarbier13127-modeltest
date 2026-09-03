@@ -282,8 +282,21 @@ cas, tous deux explicites :
 
 Donner `--oauth-url` (ou laisser déduire la base depuis `--url`) et ne pas
 passer `--check` garantit qu'aucune requête ne part ailleurs que vers l'OAuth.
-`--verbose` liste les hôtes réellement contactés, ce qui permet de le vérifier.
-La ligne `appels :` de l'en-tête le rappelle à chaque exécution.
+La ligne `appels :` de l'en-tête le rappelle à chaque exécution, et le bloc
+`adresses contactées` le prouve :
+
+```
+-- adresses contactées --
+  oauth-openshift.apps.ds.alf.corp  →  192.168.100.101:443  (TLS)
+```
+
+C'est l'adresse **au bout de la socket**, pas une résolution DNS refaite après
+coup : quand plusieurs routeurs répondent pour la même Route, c'est celui qui a
+servi la requête qui est indiqué, et les autres adresses publiées par le DNS
+sont listées en dessous (`--quiet` supprime cette seconde interrogation). Le
+bloc est affiché aussi quand le parcours échoue, et un IdP externe y apparaît
+comme une ligne supplémentaire. `--verbose` détaille en plus chaque requête et
+chaque redirection.
 
 La base du serveur OAuth est déduite de `--url` (`*.apps.<domaine>` →
 `oauth-openshift.apps.<domaine>`), ou découverte via `--api-server`

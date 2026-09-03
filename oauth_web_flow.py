@@ -34,7 +34,8 @@ lequel il redirige). L'API server n'est appelé que dans deux cas, tous deux
 explicites : `--api-server` sans `--oauth-url`, pour découvrir l'endpoint via
 `/.well-known/oauth-authorization-server` ; et `--check`, qui valide le jeton
 obtenu par un `GET /apis/user.openshift.io/v1/users/~`. Fournir `--oauth-url`
-suffit à garantir qu'aucune requête ne part ailleurs que vers l'OAuth.
+suffit à garantir qu'aucune requête ne part ailleurs que vers l'OAuth. Les
+adresses IP réellement contactées sont affichées à chaque exécution.
 
 À ne pas confondre avec `--user/--password` des tests t0x : ceux-là utilisent le
 flux *challenging client* (un GET avec en-tête Basic), qui ne passe ni par la
@@ -80,6 +81,30 @@ ETAPES = {
 }
 
 
+def show_peers(br, quiet=False) -> list:
+    """
+    Affiche les adresses réellement contactées : hôte → IP:port.
+
+    C'est le pair au bout de la socket, pas une résolution DNS refaite après
+    coup — derrière une Route OpenShift plusieurs routeurs peuvent répondre, et
+    c'est celui qui a servi la requête qui intéresse.
+    """
+    peers = getattr(br, "peers", []) if br else []
+    if not peers:
+        return []
+    print("\n-- adresses contactées --")
+    for p in peers:
+        tls = "TLS" if p["tls"] else "clair"
+        print(f"  {p['host']}  →  {p['ip']}:{p['port']}  ({tls})")
+        if not quiet:
+            tous = br.dns_records(p["host"], p["port"])
+            autres = [a for a in tous if a != p["ip"]]
+            if autres:
+                print(f"      autres adresses publiées par le DNS : "
+                      f"{', '.join(autres)}")
+    return peers
+
+
 def _write_html(dest: str, body: str) -> str:
     path = os.path.expanduser(dest)
     d = os.path.dirname(path)
@@ -102,12 +127,16 @@ def _split_field(spec: str) -> tuple:
 
 def list_idp(args) -> int:
     """`--list-idp` : ce que le cluster propose, sans fournir d'identifiants."""
+    br = None
     try:
         base, origine = resolve_base(args)
+        br = oauthweb.Browser(insecure=args.insecure, timeout=args.timeout)
         links = oauthweb.list_idps(base, insecure=args.insecure,
                                    timeout=args.timeout,
-                                   client_id=args.client_id, scope=args.scope)
+                                   client_id=args.client_id, scope=args.scope,
+                                   browser=br)
     except (oauthweb.FlowError, auth.AuthError) as e:
+        show_peers(br, quiet=True)
         erreur(f"{e}")
         return report.EXIT_INCONCLUSIVE
     print(f"\n  serveur OAuth : {base}   ({origine})")
@@ -120,6 +149,7 @@ def list_idp(args) -> int:
     for a in links:
         libelle = a["text"] or "-"
         print(f"      --idp {a['name']:<24} (libellé affiché : {libelle})")
+    show_peers(br, quiet=args.quiet)
     return report.EXIT_OK
 
 
@@ -208,6 +238,9 @@ def main() -> int:
                         "demander explicitement ; il exige --api-server")
 
     o = ap.add_argument_group("sortie")
+    o.add_argument("--quiet", action="store_true",
+                   help="sortie condensée : n'interroge pas le DNS pour "
+                        "signaler les autres adresses de l'hôte")
     o.add_argument("--verbose", action="store_true",
                    help="détaille chaque requête et chaque redirection")
     o.add_argument("--html", metavar="FICHIER",
@@ -281,14 +314,16 @@ def main() -> int:
                        "titre": page.title})
         print(f"  → {ETAPES.get(label, label):<38} HTTP {page.status}  {page.url}")
 
+    br = oauthweb.Browser(insecure=args.insecure, timeout=args.timeout)
     try:
         page, br = oauthweb.run_flow(
-            base, args.user, password,
+            base, args.user, password, browser=br,
             insecure=args.insecure, timeout=args.timeout,
             client_id=args.client_id, scope=args.scope, idp=args.idp,
             user_field=args.user_field, password_field=args.password_field,
             extra_fields=extra_fields, on_step=on_step)
     except oauthweb.FlowError as e:
+        show_peers(br, quiet=args.quiet)
         print()
         # La page où le parcours s'est arrêté vaut le diagnostic : on la garde
         # si --html a été demandé, et on en montre le rendu.
@@ -299,6 +334,8 @@ def main() -> int:
                 _write_html(args.html, e.page.body)
         erreur(e)
         return report.EXIT_FAIL
+
+    show_peers(br, quiet=args.quiet)
 
     if args.verbose:
         print("\n-- requêtes --")
