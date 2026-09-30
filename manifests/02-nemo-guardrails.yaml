@@ -1,0 +1,34 @@
+# =============================================================================
+# 02 — Serveur NeMo Guardrails (CR NemoGuardrails)
+# -----------------------------------------------------------------------------
+# L'opérateur TrustyAI crée Deployment, Service et Route « nemo-guardrails ».
+# enable-auth : kube-rbac-proxy devant le serveur (Route reencrypt, 443→8443) ;
+# tout appelant doit présenter un jeton autorisé à « get services » dans le projet.
+#
+# Prérequis : 00-access-llm.yaml (Secret nemo-guardrails-token) et
+#             01-nemo-config.yaml (ConfigMap nemo-config).
+# Modèle : rendre avec ../render.sh avant application.
+# =============================================================================
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: NemoGuardrails
+metadata:
+  name: nemo-guardrails
+  namespace: ${GR_NAMESPACE}
+  annotations:
+    security.opendatahub.io/enable-auth: 'true'
+spec:
+  replicas: 1
+  nemoConfigs:
+    - name: demo
+      configMaps:
+        - nemo-config
+      default: true
+  env:
+    # Sert à GET /v1/models (relayé au LLM) ; sans elle : « MAIN_MODEL_BASE_URL is not set »
+    - name: MAIN_MODEL_BASE_URL
+      value: ${LLM_BASE_URL}
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nemo-guardrails-token
+          key: token

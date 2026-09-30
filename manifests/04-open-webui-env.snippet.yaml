@@ -1,0 +1,42 @@
+# =============================================================================
+# 04 — (Optionnel) Open WebUI : connexion directe + connexion filtrée par NeMo
+# -----------------------------------------------------------------------------
+# EXTRAIT, pas un manifeste autonome : ces variables remplacent le bloc LLM
+# (OPENAI_API_BASE_URLS / OPENAI_API_KEYS) dans le Deployment Open WebUI
+# existant (dans AiDocs : manifests/01-open-webui.yaml).
+#
+#   connexion 0 : le LLM en direct        → modèle « ${LLM_MODEL_NAME} »
+#   connexion 1 : via NeMo Guardrails      → modèle « guardrails.${LLM_MODEL_NAME} »
+#
+# Prérequis :
+#   - ServiceAccount ${OWUI_SA} (${OWUI_NAMESPACE}) et son Secret de jeton non
+#     expirant ${OWUI_TOKEN_SECRET} ;
+#   - ce compte autorisé sur le LLM (RoleBinding vers ${LLM_CALLER_ROLE} dans
+#     ${LLM_NAMESPACE}) ET sur NeMo (03-client-access.yaml) ;
+#   - CA service-ca monté dans le pod et désigné par SSL_CERT_FILE.
+#
+# ⚠️ OWUI_TOKEN doit précéder OPENAI_API_KEYS : Kubernetes ne substitue
+#    $(OWUI_TOKEN) que si la variable est déclarée AVANT dans la liste.
+# ⚠️ Réglages à faire ensuite dans l'interface (enregistrés en base) :
+#    Admin Panel → Settings → Models, pour les DEUX modèles :
+#      Capabilities → décocher « Builtin Tools » ;
+#    et pour guardrails.${LLM_MODEL_NAME} :
+#      Advanced Params → Stream Chat Response = Off.
+#    Voir GUIDE.md §6.
+# Modèle : rendre avec ../render.sh ; $(OWUI_TOKEN) n'est pas touché par le rendu.
+# =============================================================================
+            - name: ENABLE_OLLAMA_API
+              value: 'false'
+            - name: OWUI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ${OWUI_TOKEN_SECRET}
+                  key: token
+            - name: OPENAI_API_BASE_URLS
+              value: '${LLM_BASE_URL};https://nemo-guardrails.${GR_NAMESPACE}.svc.cluster.local/v1'
+            - name: OPENAI_API_KEYS
+              value: '$(OWUI_TOKEN);$(OWUI_TOKEN)'
+            # prefix_id évite la collision des deux « ${LLM_MODEL_NAME} » (retiré avant
+            # l'envoi) ; model_ids déclare le modèle sans interroger /v1/models de NeMo.
+            - name: OPENAI_API_CONFIGS
+              value: '{"0":{},"1":{"prefix_id":"guardrails","model_ids":["${LLM_MODEL_NAME}"]}}'

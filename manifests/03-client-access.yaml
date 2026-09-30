@@ -1,0 +1,52 @@
+# =============================================================================
+# 03 — Qui peut appeler NeMo Guardrails
+# -----------------------------------------------------------------------------
+# Le kube-rbac-proxy du CR (enable-auth) exige un jeton autorisé à
+# « get services » dans le projet. On l'accorde à :
+#   - guardrails-client : compte de test (curl, recette, démo) ;
+#   - ${OWUI_NAMESPACE}/${OWUI_SA} : le client de démo (Open WebUI, connexion filtrée).
+#     Sans Open WebUI : supprimer ce sujet du RoleBinding.
+# Modèle : rendre avec ../render.sh avant application.
+# =============================================================================
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: guardrails-client
+  namespace: ${GR_NAMESPACE}
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: guardrails-client-token
+  namespace: ${GR_NAMESPACE}
+  annotations:
+    kubernetes.io/service-account.name: guardrails-client
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nemo-guardrails-caller
+  namespace: ${GR_NAMESPACE}
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nemo-guardrails-callers
+  namespace: ${GR_NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nemo-guardrails-caller
+subjects:
+  - kind: ServiceAccount
+    name: guardrails-client
+    namespace: ${GR_NAMESPACE}
+  - kind: ServiceAccount
+    name: ${OWUI_SA}
+    namespace: ${OWUI_NAMESPACE}

@@ -1,0 +1,73 @@
+# =============================================================================
+# 01 — Configuration NeMo Guardrails « demo »
+# -----------------------------------------------------------------------------
+#   LLM protégé : ${LLM_MODEL_NAME} via ${LLM_BASE_URL}. Le CA
+#                 service-ca est injecté par l'opérateur TrustyAI, le jeton vient
+#                 de OPENAI_API_KEY (CR NemoGuardrails).
+#   Rails actifs, aucun appel LLM supplémentaire :
+#     - données sensibles (Presidio) : e-mail, carte bancaire, IBAN
+#     - regex : injection de prompt (EN/FR) et numéro de sécurité sociale
+#     - « retrieval » : mêmes regex d'injection, pour l'acte RAG (extraits vidés)
+#
+# Noms de flows vérifiés dans NeMo-Guardrails@rhoai-3.4 (nemoguardrails/library).
+# Colang 1.0 (défaut) : config.yaml et rails.co sont exigés par l'entrypoint.
+# Un changement de cette ConfigMap redéploie le pod (hash surveillé).
+# Modèle : rendre avec ../render.sh avant application.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nemo-config
+  namespace: ${GR_NAMESPACE}
+data:
+  config.yaml: |
+    models:
+      - type: main
+        engine: openai
+        parameters:
+          openai_api_base: "${LLM_BASE_URL}"
+          model_name: "${LLM_MODEL_NAME}"
+
+    rails:
+      config:
+        sensitive_data_detection:
+          input:
+            entities: [EMAIL_ADDRESS, CREDIT_CARD, IBAN_CODE]
+          output:
+            entities: [EMAIL_ADDRESS, CREDIT_CARD, IBAN_CODE]
+
+        regex_detection:
+          input:
+            case_insensitive: true
+            patterns:
+              - 'ignore (all |any )?(the )?(previous|prior|above) (instructions|rules)'
+              - 'ignore[sz]? (toutes )?(les )?(instructions|consignes|règles) (précédentes|ci-dessus)'
+              - 'oublie[sz]? (toutes )?(tes|vos|les) (instructions|consignes|règles)'
+              - '(system prompt|prompt système)'
+              - '\b[12] ?\d{2} ?(0[1-9]|1[0-2]) ?\d{2} ?\d{3} ?\d{3} ?\d{2}\b'
+          retrieval:
+            case_insensitive: true
+            patterns:
+              - 'ignore (all |any )?(the )?(previous|prior|above) (instructions|rules)'
+              - 'ignore[sz]? (toutes )?(les )?(instructions|consignes|règles) (précédentes|ci-dessus)'
+              - 'oublie[sz]? (toutes )?(tes|vos|les) (instructions|consignes|règles)'
+
+      input:
+        flows:
+          - detect sensitive data on input
+          - regex check input
+      output:
+        flows:
+          - detect sensitive data on output
+        # PAS de « streaming: enabled: true » — bug NeMo rhoai-3.4 : au premier
+        # appel en streaming, $bot_message est écrasé dans la définition partagée
+        # du flow ; ensuite le rail de sortie analyse toujours ce premier texte,
+        # streaming ou non, jusqu'au redémarrage du pod (cf. guardrails/GUIDE.md).
+        # Conséquence : une requête stream=true renvoie « Internal server error »
+        # (aucune fuite) ; les clients doivent appeler NeMo sans streaming.
+      retrieval:
+        flows:
+          - regex check retrieval
+
+  rails.co: |
+    # Rails intégrés uniquement (library NeMo) ; fichier exigé par l'entrypoint.

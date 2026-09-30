@@ -1,0 +1,45 @@
+# =============================================================================
+# 00 — Accès du projet Guardrails au LLM à protéger
+# -----------------------------------------------------------------------------
+#   ServiceAccount nemo-guardrails : identité du serveur NeMo Guardrails
+#   Secret nemo-guardrails-token   : son jeton non expirant, injecté en
+#                                    OPENAI_API_KEY par le CR NemoGuardrails (02)
+#   RoleBinding (projet du LLM)    : lie ce compte au Role qui autorise l'appel
+#                                    du modèle (« get » sur l'InferenceService) ;
+#                                    c'est ce que vérifie le proxy d'auth KServe.
+#
+# Prérequis : projet ${GR_NAMESPACE} créé depuis le dashboard OpenShift AI ;
+#             Role ${LLM_CALLER_ROLE} existant dans ${LLM_NAMESPACE}.
+# Modèle : rendre avec ../render.sh avant application.
+# =============================================================================
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nemo-guardrails
+  namespace: ${GR_NAMESPACE}
+---
+# Jeton non expirant : NeMo lit OPENAI_API_KEY au démarrage, il ne suit pas la
+# rotation d'un jeton projeté.
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: nemo-guardrails-token
+  namespace: ${GR_NAMESPACE}
+  annotations:
+    kubernetes.io/service-account.name: nemo-guardrails
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nemo-guardrails-inference
+  namespace: ${LLM_NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${LLM_CALLER_ROLE}
+subjects:
+  - kind: ServiceAccount
+    name: nemo-guardrails
+    namespace: ${GR_NAMESPACE}

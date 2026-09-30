@@ -1,0 +1,42 @@
+# =============================================================================
+# 04 — (Optionnel) Open WebUI : connexion directe + connexion filtrée par NeMo
+# -----------------------------------------------------------------------------
+# EXTRAIT, pas un manifeste autonome : ces variables remplacent le bloc LLM
+# (OPENAI_API_BASE_URLS / OPENAI_API_KEYS) dans le Deployment Open WebUI
+# existant (dans AiDocs : manifests/01-open-webui.yaml).
+#
+#   connexion 0 : le LLM en direct        → modèle « qwen-gpu »
+#   connexion 1 : via NeMo Guardrails      → modèle « guardrails.qwen-gpu »
+#
+# Prérequis :
+#   - ServiceAccount open-webui (aidocs) et son Secret de jeton non
+#     expirant open-webui-token ;
+#   - ce compte autorisé sur le LLM (RoleBinding vers qwen-gpu-inference-caller dans
+#     alf-test) ET sur NeMo (03-client-access.yaml) ;
+#   - CA service-ca monté dans le pod et désigné par SSL_CERT_FILE.
+#
+# ⚠️ OWUI_TOKEN doit précéder OPENAI_API_KEYS : Kubernetes ne substitue
+#    $(OWUI_TOKEN) que si la variable est déclarée AVANT dans la liste.
+# ⚠️ Réglages à faire ensuite dans l'interface (enregistrés en base) :
+#    Admin Panel → Settings → Models, pour les DEUX modèles :
+#      Capabilities → décocher « Builtin Tools » ;
+#    et pour guardrails.qwen-gpu :
+#      Advanced Params → Stream Chat Response = Off.
+#    Voir GUIDE.md §6.
+# Modèle : rendre avec ../render.sh ; $(OWUI_TOKEN) n'est pas touché par le rendu.
+# =============================================================================
+            - name: ENABLE_OLLAMA_API
+              value: 'false'
+            - name: OWUI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-token
+                  key: token
+            - name: OPENAI_API_BASE_URLS
+              value: 'https://qwen-gpu-predictor.alf-test.svc.cluster.local:8443/v1;https://nemo-guardrails.guardrails-demo.svc.cluster.local/v1'
+            - name: OPENAI_API_KEYS
+              value: '$(OWUI_TOKEN);$(OWUI_TOKEN)'
+            # prefix_id évite la collision des deux « qwen-gpu » (retiré avant
+            # l'envoi) ; model_ids déclare le modèle sans interroger /v1/models de NeMo.
+            - name: OPENAI_API_CONFIGS
+              value: '{"0":{},"1":{"prefix_id":"guardrails","model_ids":["qwen-gpu"]}}'
