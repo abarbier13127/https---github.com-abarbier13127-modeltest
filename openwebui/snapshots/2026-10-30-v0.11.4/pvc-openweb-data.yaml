@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"annotations":{},"name":"openweb-data","namespace":"aidocs"},"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"20Gi"}},"volumeMode":"Filesystem"}}
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: topolvm.io
+    volume.kubernetes.io/selected-node: api.ds.alf.corp
+    volume.kubernetes.io/storage-provisioner: topolvm.io
+  creationTimestamp: "2026-09-23T15:09:19Z"
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: openweb-data
+  namespace: aidocs
+  resourceVersion: "11705691"
+  uid: bfee3d91-20d9-4256-8647-6acaf9819bf9
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: lvms-vg1
+  volumeMode: Filesystem
+  volumeName: pvc-bfee3d91-20d9-4256-8647-6acaf9819bf9
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 20Gi
+  phase: Bound

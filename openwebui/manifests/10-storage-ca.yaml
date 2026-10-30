@@ -1,0 +1,27 @@
+# =============================================================================
+# Données persistantes et CA des services internes.
+#   openweb-data : /app/backend/data (webui.db SQLite, uploads, cache, vector_db)
+#   service-ca   : rempli par l'opérateur service-ca (annotation inject-cabundle)
+# Le Secret open-webui-secret-key n'est pas versionné ici : voir
+# scripts/create-secret-key.sh. Le Secret open-webui-token (jeton du SA
+# open-webui, autorisé sur NeMo) vient du bench guardrails.
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openweb-data
+  namespace: aidocs
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: lvms-vg1
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-ca
+  namespace: aidocs
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"

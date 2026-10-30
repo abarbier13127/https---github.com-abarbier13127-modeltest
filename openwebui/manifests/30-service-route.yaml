@@ -1,0 +1,48 @@
+# =============================================================================
+# Exposition : https://open-webui-aidocs.apps.ds.alf.corp (edge, HTTP → HTTPS)
+# Pas de DNS joker sur le poste : entrée à ajouter dans /etc/hosts
+#   192.168.100.101 open-webui-aidocs.apps.ds.alf.corp
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: open-webui
+  namespace: aidocs
+  labels:
+    app: open-webui
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: open-webui
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: aidocs-app
+    app.openshift.io/runtime-version: main
+spec:
+  selector:
+    app: open-webui
+    deployment: open-webui
+  ports:
+    - name: 8080-tcp
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: open-webui
+  namespace: aidocs
+  labels:
+    app: open-webui
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: open-webui
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: aidocs-app
+spec:
+  host: open-webui-aidocs.apps.ds.alf.corp
+  to:
+    kind: Service
+    name: open-webui
+  port:
+    targetPort: 8080-tcp
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

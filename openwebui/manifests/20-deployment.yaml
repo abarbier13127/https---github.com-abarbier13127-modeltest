@@ -1,0 +1,155 @@
+# =============================================================================
+# Open WebUI — namespace aidocs (SNO ds.alf.corp)
+# -----------------------------------------------------------------------------
+# Image officielle ghcr.io. Sous OpenShift (UID aléatoire, restricted-v2),
+# /app/backend n'est pas inscriptible : la clé de session NE PEUT PAS être
+# générée dans le conteneur → WEBUI_SECRET_KEY vient du Secret
+# open-webui-secret-key (scripts/create-secret-key.sh). Sans lui : crash au
+# démarrage, et toutes les sessions sont invalidées à chaque redémarrage.
+#
+# Recreate : base SQLite sur un PVC RWO, jamais deux pods en même temps
+# (surtout pendant les migrations de schéma d'une montée de version).
+#
+# ENABLE_PERSISTENT_CONFIG=false : ces variables font foi à chaque démarrage,
+# les réglages équivalents de l'Admin Panel sont écrasés. Exception : les
+# réglages PAR MODÈLE (Builtin Tools, Stream…) sont en base, voir README.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+  namespace: aidocs
+  labels:
+    app: open-webui
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: open-webui
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: aidocs-app
+    app.openshift.io/runtime: python
+    app.openshift.io/runtime-namespace: aidocs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: open-webui
+  template:
+    metadata:
+      labels:
+        app: open-webui
+        deployment: open-webui
+    spec:
+      containers:
+        - name: open-webui
+          image: ghcr.io/open-webui/open-webui:v0.12.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: WEBUI_URL
+              value: https://open-webui-aidocs.apps.ds.alf.corp
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-secret-key
+                  key: WEBUI_SECRET_KEY
+
+            # --- Fonctions désactivées (cluster hors ligne, démo maîtrisée)
+            - name: OFFLINE_MODE
+              value: "true"
+            - name: ENABLE_PERSISTENT_CONFIG
+              value: "false"
+            - name: ENABLE_OLLAMA_API
+              value: "false"
+            - name: ENABLE_WEB_SEARCH
+              value: "false"
+            - name: ENABLE_RAG_WEB_SEARCH
+              value: "false"
+            - name: ENABLE_COMMUNITY_SHARING
+              value: "false"
+            - name: WHISPER_MODEL_AUTO_UPDATE
+              value: "false"
+            - name: ENABLE_PIP_INSTALL_FRONTMATTER_REQUIREMENTS
+              value: "false"
+
+            # --- LLM : deux connexions OpenAI, même modèle
+            #   0 : granite-llmd en direct          → « granite-3-3-2b »
+            #   1 : via NeMo Guardrails             → « guardrails.granite-3-3-2b »
+            # granite-llmd n'exige pas de jeton ; NeMo si (kube-rbac-proxy).
+            # OWUI_TOKEN doit être déclaré AVANT OPENAI_API_KEYS ($(…) substitué).
+            - name: OWUI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-token
+                  key: token
+            - name: OPENAI_API_BASE_URLS
+              value: https://granite-llmd-kserve-workload-svc.alf-test.svc.cluster.local:8000/v1;https://nemo-guardrails.guardrails-demo.svc.cluster.local/v1
+            - name: OPENAI_API_KEYS
+              value: $(OWUI_TOKEN);$(OWUI_TOKEN)
+            # prefix_id évite la collision des deux ids ; model_ids évite
+            # d'interroger /v1/models de NeMo.
+            - name: OPENAI_API_CONFIGS
+              value: '{"0":{},"1":{"prefix_id":"guardrails","model_ids":["granite-3-3-2b"]}}'
+            - name: DEFAULT_MODELS
+              value: granite-3-3-2b
+            # Services internes signés par le service-ca OpenShift
+            - name: SSL_CERT_FILE
+              value: /etc/pki/service-ca/service-ca.crt
+            - name: REQUESTS_CA_BUNDLE
+              value: /etc/pki/service-ca/service-ca.crt
+
+            # --- RAG : embeddings e5-small (vLLM CPU, même namespace)
+            - name: BYPASS_EMBEDDING_AND_RETRIEVAL
+              value: "true"
+            - name: RAG_TEXT_SPLITTER
+              value: character
+            - name: RAG_EMBEDDING_ENGINE
+              value: openai
+            - name: RAG_OPENAI_API_BASE_URL
+              value: http://e5-small-predictor.aidocs.svc.cluster.local:8080/v1
+            - name: RAG_OPENAI_API_KEY
+              value: none
+            - name: RAG_EMBEDDING_MODEL
+              value: e5-small
+            - name: RAG_EMBEDDING_QUERY_PREFIX
+              value: 'query: '
+            - name: RAG_EMBEDDING_CONTENT_PREFIX
+              value: 'passage: '
+
+            # --- Génération d'images désactivée (2026-10-30) : aucun backend
+            # (AUTOMATIC1111 / Stable Diffusion) sur le cluster, seul GPU occupé.
+            - name: ENABLE_IMAGE_GENERATION
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: 500Mi
+            limits:
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: openweb-data
+              mountPath: /app/backend/data
+            - name: service-ca
+              mountPath: /etc/pki/service-ca
+              readOnly: true
+      volumes:
+        - name: openweb-data
+          persistentVolumeClaim:
+            claimName: openweb-data
+        - name: service-ca
+          configMap:
+            name: service-ca

@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "13"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"open-webui","app.kubernetes.io/component":"open-webui","app.kubernetes.io/instance":"open-webui","app.kubernetes.io/name":"open-webui","app.kubernetes.io/part-of":"aidocs-app","app.openshift.io/runtime":"python","app.openshift.io/runtime-namespace":"aidocs"},"name":"open-webui","namespace":"aidocs"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"open-webui"}},"template":{"metadata":{"labels":{"app":"open-webui","deployment":"open-webui"}},"spec":{"containers":[{"env":[{"name":"WEBUI_URL","value":"https://open-webui-aidocs.apps.ds.alf.corp"},{"name":"BYPASS_EMBEDDING_AND_RETRIEVAL","value":"true"},{"name":"ENABLE_WEB_SEARCH","value":"false"},{"name":"ENABLE_RAG_WEB_SEARCH","value":"false"},{"name":"ENABLE_COMMUNITY_SHARING","value":"false"},{"name":"WHISPER_MODEL_AUTO_UPDATE","value":"false"},{"name":"ENABLE_PIP_INSTALL_FRONTMATTER_REQUIREMENTS","value":"false"},{"name":"RAG_TEXT_SPLITTER","value":"character"},{"name":"OFFLINE_MODE","value":"true"},{"name":"ENABLE_PERSISTENT_CONFIG","value":"false"},{"name":"ENABLE_OLLAMA_API","value":"false"},{"name":"OWUI_TOKEN","valueFrom":{"secretKeyRef":{"key":"token","name":"open-webui-token"}}},{"name":"OPENAI_API_BASE_URLS","value":"https://qwen-gpu-predictor.alf-test.svc.cluster.local:8443/v1;https://nemo-guardrails.guardrails-demo.svc.cluster.local/v1"},{"name":"OPENAI_API_KEYS","value":"$(OWUI_TOKEN);$(OWUI_TOKEN)"},{"name":"OPENAI_API_CONFIGS","value":"{\"0\":{},\"1\":{\"prefix_id\":\"guardrails\",\"model_ids\":[\"qwen-gpu\"]}}"},{"name":"DEFAULT_MODELS","value":"qwen-gpu"},{"name":"SSL_CERT_FILE","value":"/etc/pki/service-ca/service-ca.crt"},{"name":"REQUESTS_CA_BUNDLE","value":"/etc/pki/service-ca/service-ca.crt"},{"name":"RAG_EMBEDDING_ENGINE","value":"openai"},{"name":"RAG_OPENAI_API_BASE_URL","value":"http://e5-small-predictor.aidocs.svc.cluster.local:8080/v1"},{"name":"RAG_OPENAI_API_KEY","value":"none"},{"name":"RAG_EMBEDDING_MODEL","value":"e5-small"},{"name":"RAG_EMBEDDING_QUERY_PREFIX","value":"query: "},{"name":"RAG_EMBEDDING_CONTENT_PREFIX","value":"passage: "},{"name":"AUTOMATIC1111_BASE_URL","value":"http://stable-diffusion-webui.aidocs.svc.cluster.local:7860/"},{"name":"ENABLE_IMAGE_GENERATION","value":"true"}],"image":"quay.io/castawayegr/open-webui:v0.11.4","imagePullPolicy":"IfNotPresent","name":"open-webui","ports":[{"containerPort":8080,"protocol":"TCP"}],"resources":{"limits":{"memory":"2Gi"},"requests":{"memory":"500Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}},"volumeMounts":[{"mountPath":"/app/backend/data","name":"openweb-data"},{"mountPath":"/etc/pki/service-ca","name":"service-ca","readOnly":true}]}],"volumes":[{"configMap":{"name":"service-ca"},"name":"service-ca"},{"name":"openweb-data","persistentVolumeClaim":{"claimName":"openweb-data"}}]}}}}
+  creationTimestamp: "2026-09-23T14:20:43Z"
+  generation: 19
+  labels:
+    app: open-webui
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: open-webui
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: aidocs-app
+    app.openshift.io/runtime: python
+    app.openshift.io/runtime-namespace: aidocs
+  name: open-webui
+  namespace: aidocs
+  resourceVersion: "15425819"
+  uid: a6585e2f-7388-4c4b-8e07-82fca0ce74f7
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: open-webui
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: open-webui
+        deployment: open-webui
+    spec:
+      containers:
+      - env:
+        - name: WEBUI_URL
+          value: https://open-webui-aidocs.apps.ds.alf.corp
+        - name: BYPASS_EMBEDDING_AND_RETRIEVAL
+          value: "true"
+        - name: ENABLE_WEB_SEARCH
+          value: "false"
+        - name: ENABLE_RAG_WEB_SEARCH
+          value: "false"
+        - name: ENABLE_COMMUNITY_SHARING
+          value: "false"
+        - name: WHISPER_MODEL_AUTO_UPDATE
+          value: "false"
+        - name: ENABLE_PIP_INSTALL_FRONTMATTER_REQUIREMENTS
+          value: "false"
+        - name: RAG_TEXT_SPLITTER
+          value: character
+        - name: OFFLINE_MODE
+          value: "true"
+        - name: ENABLE_PERSISTENT_CONFIG
+          value: "false"
+        - name: ENABLE_OLLAMA_API
+          value: "false"
+        - name: OWUI_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: open-webui-token
+        - name: OPENAI_API_BASE_URLS
+          value: https://granite-llmd-kserve-workload-svc.alf-test.svc.cluster.local:8000/v1;https://nemo-guardrails.guardrails-demo.svc.cluster.local/v1
+        - name: OPENAI_API_KEYS
+          value: $(OWUI_TOKEN);$(OWUI_TOKEN)
+        - name: OPENAI_API_CONFIGS
+          value: '{"0":{},"1":{"prefix_id":"guardrails","model_ids":["granite-3-3-2b"]}}'
+        - name: DEFAULT_MODELS
+          value: granite-3-3-2b
+        - name: SSL_CERT_FILE
+          value: /etc/pki/service-ca/service-ca.crt
+        - name: REQUESTS_CA_BUNDLE
+          value: /etc/pki/service-ca/service-ca.crt
+        - name: RAG_EMBEDDING_ENGINE
+          value: openai
+        - name: RAG_OPENAI_API_BASE_URL
+          value: http://e5-small-predictor.aidocs.svc.cluster.local:8080/v1
+        - name: RAG_OPENAI_API_KEY
+          value: none
+        - name: RAG_EMBEDDING_MODEL
+          value: e5-small
+        - name: RAG_EMBEDDING_QUERY_PREFIX
+          value: 'query: '
+        - name: RAG_EMBEDDING_CONTENT_PREFIX
+          value: 'passage: '
+        - name: AUTOMATIC1111_BASE_URL
+          value: http://stable-diffusion-webui.aidocs.svc.cluster.local:7860/
+        - name: ENABLE_IMAGE_GENERATION
+          value: "true"
+        image: quay.io/castawayegr/open-webui:v0.11.4
+        imagePullPolicy: IfNotPresent
+        name: open-webui
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          limits:
+            memory: 2Gi
+          requests:
+            memory: 500Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /app/backend/data
+          name: openweb-data
+        - mountPath: /etc/pki/service-ca
+          name: service-ca
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: service-ca
+        name: service-ca
+      - name: openweb-data
+        persistentVolumeClaim:
+          claimName: openweb-data
+status:
+  availableReplicas: 1
+  conditions:
+  - lastTransitionTime: "2026-09-23T14:20:43Z"
+    lastUpdateTime: "2026-10-29T17:01:13Z"
+    message: ReplicaSet "open-webui-6b4784848f" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  - lastTransitionTime: "2026-10-30T07:45:22Z"
+    lastUpdateTime: "2026-10-30T07:45:22Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  observedGeneration: 19
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1

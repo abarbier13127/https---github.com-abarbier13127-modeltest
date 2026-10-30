@@ -1,0 +1,40 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"route.openshift.io/v1","kind":"Route","metadata":{"annotations":{},"labels":{"app":"open-webui","app.kubernetes.io/component":"open-webui","app.kubernetes.io/instance":"open-webui","app.kubernetes.io/name":"open-webui","app.kubernetes.io/part-of":"aidocs-app"},"name":"open-webui","namespace":"aidocs"},"spec":{"port":{"targetPort":"8080-tcp"},"tls":{"insecureEdgeTerminationPolicy":"Redirect","termination":"edge"},"to":{"kind":"Service","name":"open-webui","weight":100},"wildcardPolicy":"None"}}
+    openshift.io/host.generated: "true"
+  creationTimestamp: "2026-09-23T14:20:43Z"
+  labels:
+    app: open-webui
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: open-webui
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: aidocs-app
+  name: open-webui
+  namespace: aidocs
+  resourceVersion: "11532059"
+  uid: 6defb768-2a57-4306-b46e-afcf6ccf39a9
+spec:
+  host: open-webui-aidocs.apps.ds.alf.corp
+  port:
+    targetPort: 8080-tcp
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: open-webui
+    weight: 100
+  wildcardPolicy: None
+status:
+  ingress:
+  - conditions:
+    - lastTransitionTime: "2026-09-23T14:20:43Z"
+      status: "True"
+      type: Admitted
+    host: open-webui-aidocs.apps.ds.alf.corp
+    routerCanonicalHostname: router-default.apps.ds.alf.corp
+    routerName: default
+    wildcardPolicy: None
