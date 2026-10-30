@@ -1,0 +1,54 @@
+# ClusterQueue "default" — H200 uniquement (les L4 sont hors Kueue, via un hardware profile de type Node).
+# C'est vers elle que pointe la LocalQueue "default" créée par RHOAI dans chaque projet géré.
+#
+# - Annotation opendatahub.io/managed: "false" OBLIGATOIRE et à appliquer AVANT autoCreateQueues: true,
+#   sinon l'opérateur RHOAI remplace cette ClusterQueue par la sienne (même nom).
+# - Un seul resourceGroup : cpu/memory ne peuvent appartenir qu'à un groupe. Chaque flavor déclare toutes les ressources,
+#   à 0 pour celles absentes de ses nœuds → une demande nvidia.com/gpu ne peut aller que sur une flavor qui a des GPU entiers.
+# - Ordre des flavors = ordre d'essai : rf-h200 → rf-h200-mig → rf-h200-mixte (débordement GPU entiers ET tranches).
+#   Supprimer rf-h200-mixte si le profil sur mesure n'est pas utilisé.
+# - Pas de préemption (valeur par défaut) : RHOAI n'accepte les workbenches que sur une ClusterQueue non préemptive.
+# - Pas de cohort : les cohorts partagés ne sont pas supportés en RHOAI 3.5.
+#
+# QUOTAS À ADAPTER au nombre réel de nœuds de chaque profil (valeurs ci-dessous : 2 nœuds all-disabled,
+# 1 nœud all-balanced, 1 nœud h200-4full-4balanced, nœuds 8 x H200 à 192 CPU / 2 Ti) :
+#   all-disabled         : nvidia.com/gpu = 8 x nœuds
+#   all-balanced         : mig-1g.18gb = 16 x nœuds, mig-2g.35gb = 8 x nœuds, mig-3g.71gb = 8 x nœuds
+#   h200-4full-4balanced : gpu = 4, mig-1g.18gb = 8, mig-2g.35gb = 4, mig-3g.71gb = 4 (x nœuds)
+#   cpu / memory         : allocatable réel des nœuds du profil (oc get node <n> -o jsonpath='{.status.allocatable}')
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: default
+  annotations:
+    opendatahub.io/managed: "false"
+spec:
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+  - coveredResources: [cpu, memory, nvidia.com/gpu, nvidia.com/mig-1g.18gb, nvidia.com/mig-2g.35gb, nvidia.com/mig-3g.71gb]
+    flavors:
+    - name: rf-h200
+      resources:
+      - {name: cpu, nominalQuota: 384}
+      - {name: memory, nominalQuota: 4096Gi}
+      - {name: nvidia.com/gpu, nominalQuota: 16}
+      - {name: nvidia.com/mig-1g.18gb, nominalQuota: 0}
+      - {name: nvidia.com/mig-2g.35gb, nominalQuota: 0}
+      - {name: nvidia.com/mig-3g.71gb, nominalQuota: 0}
+    - name: rf-h200-mig
+      resources:
+      - {name: cpu, nominalQuota: 192}
+      - {name: memory, nominalQuota: 2048Gi}
+      - {name: nvidia.com/gpu, nominalQuota: 0}
+      - {name: nvidia.com/mig-1g.18gb, nominalQuota: 16}
+      - {name: nvidia.com/mig-2g.35gb, nominalQuota: 8}
+      - {name: nvidia.com/mig-3g.71gb, nominalQuota: 8}
+    - name: rf-h200-mixte
+      resources:
+      - {name: cpu, nominalQuota: 192}
+      - {name: memory, nominalQuota: 2048Gi}
+      - {name: nvidia.com/gpu, nominalQuota: 4}
+      - {name: nvidia.com/mig-1g.18gb, nominalQuota: 8}
+      - {name: nvidia.com/mig-2g.35gb, nominalQuota: 4}
+      - {name: nvidia.com/mig-3g.71gb, nominalQuota: 4}

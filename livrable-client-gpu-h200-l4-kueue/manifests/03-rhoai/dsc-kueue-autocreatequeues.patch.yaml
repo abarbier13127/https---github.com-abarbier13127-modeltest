@@ -1,0 +1,10 @@
+# Patch (merge) de la DataScienceCluster — ÉTAPE 7 (après création de la ClusterQueue default annotée managed=false).
+# autoCreateQueues: true → l'opérateur RHOAI crée la LocalQueue "default" (→ ClusterQueue "default") dans chaque projet
+# géré par Kueue. LE DASHBOARD NE CRÉE PAS DE LOCALQUEUE : sans ce réglage, les profils "Queue" sont inutilisables.
+# Il crée aussi sa propre ClusterQueue "default" (ignorée si la nôtre porte opendatahub.io/managed: "false")
+# et les flavors default-flavor / nvidia-gpu-flavor (inutilisées).
+# Application : oc patch datasciencecluster default-dsc --type merge --patch-file <ce fichier>
+spec:
+  components:
+    kueue:
+      autoCreateQueues: true

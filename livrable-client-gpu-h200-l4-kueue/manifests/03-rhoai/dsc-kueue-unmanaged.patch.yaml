@@ -1,0 +1,12 @@
+# Patch (merge) de la DataScienceCluster — ÉTAPE 5 : intégration RHOAI ↔ Red Hat build of Kueue.
+# managementState: Unmanaged → RHOAI crée le CR kueues.kueue.openshift.io/cluster ; l'opérateur Kueue déploie alors
+# kueue-controller-manager et les CRDs kueue.x-k8s.io ("Managed" est déprécié en RHOAI 3.x).
+# autoCreateQueues reste à false à cette étape : il sera activé à l'étape 7, APRÈS la création de la ClusterQueue protégée.
+# Application : oc patch datasciencecluster default-dsc --type merge --patch-file <ce fichier>
+spec:
+  components:
+    kueue:
+      managementState: Unmanaged
+      autoCreateQueues: true
+      defaultClusterQueueName: default
+      defaultLocalQueueName: default

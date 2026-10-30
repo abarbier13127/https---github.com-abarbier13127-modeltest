@@ -1,0 +1,24 @@
+# EXEMPLE — Variante B : hardware profile PROPRE AU PROJET (créé dans le namespace du projet, visible seulement là),
+# qui pointe vers la LocalQueue "equipe-a". Requiert disableProjectScoped: false dans odh-dashboard-config (valeur par défaut).
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: h200-full-equipe-a
+  namespace: equipe-a
+  annotations:
+    opendatahub.io/display-name: "NVIDIA H200 141 Go — réservé équipe A"
+    opendatahub.io/description: "GPU H200 entier sur le quota réservé de l'équipe A (ClusterQueue cq-equipe-a)."
+    opendatahub.io/disabled: "false"
+    opendatahub.io/managed: "false"
+    opendatahub.io/dashboard-feature-visibility: "[]"
+  labels:
+    gpu-kueue.livrable/profile: "true"
+spec:
+  identifiers:
+  - {identifier: nvidia.com/gpu, displayName: "NVIDIA H200", resourceType: Accelerator, defaultCount: 1, minCount: 1, maxCount: 8}
+  - {identifier: cpu, displayName: CPU, resourceType: CPU, defaultCount: 16, minCount: 1, maxCount: 128}
+  - {identifier: memory, displayName: Memory, resourceType: Memory, defaultCount: 128Gi, minCount: 4Gi, maxCount: 1536Gi}
+  scheduling:
+    type: Queue
+    kueue:
+      localQueueName: equipe-a

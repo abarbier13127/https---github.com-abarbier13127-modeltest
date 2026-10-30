@@ -1,0 +1,374 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Carte des manifests GPU</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Mise en page : en-tête court, carte en bandeaux par couche (défilement horizontal sur mobile), puis légende des clés */
+:root {
+  --bg: #f3f5f8; --fg: #18202b; --muted: #5a6575; --surface: #ffffff; --border: #c9d1dc;
+  --lane-a: #e7ecf2; --lane-b: #eef1f5; --line: #6b7686; --accent: #c2410c;
+  --k-place: #0f766e; --k-mig: #b45309; --k-res: #6d28d9; --k-queue: #1d4ed8; --k-quota: #9f1239; --on-chip: #ffffff;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11161d; --fg: #e3e8ef; --muted: #98a3b3; --surface: #1a212b; --border: #354153;
+  --lane-a: #161d26; --lane-b: #141a22; --line: #8b97a8; --accent: #fb923c;
+  --k-place: #2dd4bf; --k-mig: #fbbf24; --k-res: #c4b5fd; --k-queue: #93c5fd; --k-quota: #fda4af; --on-chip: #11161d;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11161d; --fg: #e3e8ef; --muted: #98a3b3; --surface: #1a212b; --border: #354153;
+  --lane-a: #161d26; --lane-b: #141a22; --line: #8b97a8; --accent: #fb923c;
+  --k-place: #2dd4bf; --k-mig: #fbbf24; --k-res: #c4b5fd; --k-queue: #93c5fd; --k-quota: #fda4af; --on-chip: #11161d;
+  color-scheme: dark; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+main { max-width: 1480px; margin: 0 auto; padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px; }
+header { display: grid; gap: 8px; max-width: 72ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: clamp(24px, 3vw, 34px); line-height: 1.15; margin: 0; font-weight: 700; text-wrap: balance; }
+h2 { font-size: 19px; margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; }
+.lead { color: var(--muted); }
+code { font-family: var(--mono); font-size: .86em; }
+figure { margin: 0; display: grid; gap: 10px; }
+.scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.scroll svg { display: block; min-width: 1120px; width: 100%; height: auto; }
+figcaption { color: var(--muted); font-size: 13.5px; max-width: 90ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 24px; font-size: 13.5px; color: var(--muted); align-items: center; }
+.legend span { display: inline-flex; gap: 8px; align-items: center; }
+.legend svg { width: 44px; height: 10px; }
+
+/* SVG */
+.lane.a { fill: var(--lane-a); } .lane.b { fill: var(--lane-b); }
+.lt { font: 600 14px var(--sans); fill: var(--fg); }
+.ls { font: 400 11.5px var(--sans); fill: var(--muted); }
+.box { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
+.box.shadow { fill: var(--surface); opacity: .55; }
+.kind { font: 600 10.5px var(--sans); letter-spacing: .07em; text-transform: uppercase; fill: var(--muted); }
+.name { font: 600 13px var(--mono); fill: var(--fg); }
+.ns { font: 400 10.5px var(--mono); fill: var(--muted); }
+.div { stroke: var(--border); stroke-width: 1; }
+.fld { font: 400 11px var(--mono); fill: var(--fg); }
+.bdg.kp, .chip.kp { fill: var(--k-place); background: var(--k-place); }
+.bdg.km, .chip.km { fill: var(--k-mig); background: var(--k-mig); }
+.bdg.kr, .chip.kr { fill: var(--k-res); background: var(--k-res); }
+.bdg.kq, .chip.kq { fill: var(--k-queue); background: var(--k-queue); }
+.bdg.kz, .chip.kz { fill: var(--k-quota); background: var(--k-quota); }
+.bdgt { font: 700 10px var(--mono); fill: var(--on-chip); }
+.arr { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.arr.act { stroke-dasharray: 5 4; }
+.arr.hot { stroke: var(--accent); stroke-width: 2.2; }
+.ahp { fill: var(--line); } .ahp.hot { fill: var(--accent); }
+.lbl { font: 500 10.5px var(--sans); fill: var(--muted); paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+.lbl.hotl { fill: var(--accent); font-weight: 600; }
+.lane ~ .lbl { stroke: var(--lane-a); }
+
+/* Tableau des clés */
+.keys { display: grid; gap: 12px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+.chip { display: inline-grid; place-items: center; width: 22px; height: 20px; border-radius: 5px; color: var(--on-chip);
+  font: 700 12px var(--mono); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.panel { display: grid; gap: 10px; align-content: start; min-width: 0; }
+ol, ul { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+.repeat { font-family: var(--mono); font-size: 13px; display: grid; gap: 4px; }
+.repeat div { min-width: 0; overflow-wrap: anywhere; }
+</style>
+
+<main>
+<header>
+  <p class="eyebrow">OpenShift 4.20 · OpenShift AI 3.5 · NVIDIA GPU Operator · Red Hat build of Kueue</p>
+  <h1>Du DataScienceCluster au workbench sur une instance MIG</h1>
+  <p class="lead">Chaque objet en référence un autre par une chaîne de caractères. Les pastilles de couleur repèrent ces clés de jointure : deux champs portant la même lettre doivent contenir exactement la même valeur.</p>
+</header>
+
+<figure>
+  <div class="legend" aria-label="Légende des flèches">
+    <span><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="5" x2="44" y2="5" stroke="var(--line)" stroke-width="1.5"/></svg>référence par nom</span>
+    <span><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="5" x2="44" y2="5" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="5 4"/></svg>action ou effet (crée, injecte, place)</span>
+    <span><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="5" x2="44" y2="5" stroke="var(--accent)" stroke-width="2.2"/></svg>chemin d’admission d’un workbench</span>
+    <span><span class="chip kp">A</span>placement</span>
+    <span><span class="chip km">C</span>MIG</span>
+    <span><span class="chip kr">F</span>nom de ressource</span>
+    <span><span class="chip kq">G</span>chaîne Kueue</span>
+    <span><span class="chip kz">Q</span>quota</span>
+  </div>
+  <div class="scroll">
+<svg viewBox="0 0 1420 935" role="img" aria-label="Chaîne des objets : le DataScienceCluster active Kueue ; le hardware profile pointe vers une LocalQueue du projet, qui pointe vers une ClusterQueue, qui utilise un ResourceFlavor sélectionnant les nœuds H200 ; la ClusterPolicy du GPU Operator référence la ConfigMap MIG dont une clé est appliquée au nœud par label, ce qui crée les ressources nvidia.com/mig-* consommées par le workbench.">
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahp" d="M0 0 L10 5 L0 10 z"/></marker>
+<marker id="ah-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahp hot" d="M0 0 L10 5 L0 10 z"/></marker>
+</defs>
+<rect class="lane a" x="10" y="30" width="1400" height="170" rx="12"/>
+<text class="lt" x="28" y="66">OpenShift AI</text>
+<text class="ls" x="28" y="84">configuration plateforme</text>
+<rect class="lane b" x="10" y="210" width="1400" height="170" rx="12"/>
+<text class="lt" x="28" y="246">Projet</text>
+<text class="ls" x="28" y="264">Data Science</text>
+<rect class="lane a" x="10" y="390" width="1400" height="170" rx="12"/>
+<text class="lt" x="28" y="426">Kueue</text>
+<text class="ls" x="28" y="444">files et quotas</text>
+<rect class="lane b" x="10" y="570" width="1400" height="170" rx="12"/>
+<text class="lt" x="28" y="606">GPU Operator</text>
+<text class="ls" x="28" y="624">découpage MIG</text>
+<rect class="lane a" x="10" y="750" width="1400" height="170" rx="12"/>
+<text class="lt" x="28" y="786">Infrastructure</text>
+<text class="ls" x="28" y="804">MachineSets et nœuds</text>
+<rect class="box" x="190" y="45" width="240" height="140" rx="8"/>
+<text class="kind" x="202" y="64">DataScienceCluster</text>
+<text class="name" x="202" y="84">default-dsc</text>
+<text class="ns" x="202" y="100">scope : cluster</text>
+<line class="div" x1="202" y1="109" x2="418" y2="109"/>
+<text class="fld" x="202" y="127" xml:space="preserve">kueue:</text>
+<text class="fld" x="202" y="143" xml:space="preserve">  managementState: Unmanaged</text>
+<text class="fld" x="202" y="159" xml:space="preserve">  autoCreateQueues: false</text>
+<rect class="box" x="480" y="45" width="240" height="140" rx="8"/>
+<text class="kind" x="492" y="64">OdhDashboardConfig</text>
+<text class="name" x="492" y="84">odh-dashboard-config</text>
+<text class="ns" x="492" y="100">ns : redhat-ods-applications</text>
+<line class="div" x1="492" y1="109" x2="708" y2="109"/>
+<text class="fld" x="492" y="127" xml:space="preserve">dashboardConfig:</text>
+<text class="fld" x="492" y="143" xml:space="preserve">  disableKueue: false</text>
+<rect class="box shadow" x="1072" y="33" width="300" height="140" rx="8"/>
+<rect class="box shadow" x="1066" y="39" width="300" height="140" rx="8"/>
+<rect class="box" x="1060" y="45" width="300" height="140" rx="8"/>
+<text class="kind" x="1072" y="64">HardwareProfile</text>
+<text class="name" x="1072" y="84">gpu-h200-mig-1g</text>
+<text class="ns" x="1072" y="100">ns : redhat-ods-applications</text>
+<line class="div" x1="1072" y1="109" x2="1348" y2="109"/>
+<text class="fld" x="1072" y="127" xml:space="preserve">identifier: nvidia.com/mig-1g.18gb</text>
+<rect class="bdg kr" x="1332" y="116" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="127" text-anchor="middle">F</text>
+<text class="fld" x="1072" y="143" xml:space="preserve">resourceType: Accelerator</text>
+<text class="fld" x="1072" y="159" xml:space="preserve">scheduling.type: Queue</text>
+<text class="fld" x="1072" y="175" xml:space="preserve">kueue.localQueueName: lq-h200-mig</text>
+<rect class="bdg kq" x="1332" y="164" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="175" text-anchor="middle">I</text>
+<rect class="box" x="480" y="225" width="240" height="140" rx="8"/>
+<text class="kind" x="492" y="244">Data Science Project</text>
+<text class="name" x="492" y="264">equipe-ia</text>
+<text class="ns" x="492" y="280">Namespace</text>
+<line class="div" x1="492" y1="289" x2="708" y2="289"/>
+<text class="fld" x="492" y="307" xml:space="preserve">label :</text>
+<text class="fld" x="492" y="323" xml:space="preserve">kueue.openshift.io/managed</text>
+<text class="fld" x="492" y="339" xml:space="preserve">  = true</text>
+<rect class="box shadow" x="782" y="213" width="240" height="140" rx="8"/>
+<rect class="box shadow" x="776" y="219" width="240" height="140" rx="8"/>
+<rect class="box" x="770" y="225" width="240" height="140" rx="8"/>
+<text class="kind" x="782" y="244">LocalQueue</text>
+<text class="name" x="782" y="264">lq-h200-mig</text>
+<text class="ns" x="782" y="280">ns : equipe-ia</text>
+<line class="div" x1="782" y1="289" x2="998" y2="289"/>
+<text class="fld" x="782" y="307" xml:space="preserve">spec:</text>
+<text class="fld" x="782" y="323" xml:space="preserve">  clusterQueue: cq-h200-mig</text>
+<rect class="bdg kq" x="982" y="312" width="18" height="15" rx="4"/><text class="bdgt" x="991" y="323" text-anchor="middle">H</text>
+<rect class="box" x="1060" y="225" width="300" height="140" rx="8"/>
+<text class="kind" x="1072" y="244">Workbench · InferenceService</text>
+<text class="name" x="1072" y="264">notebook-llm</text>
+<text class="ns" x="1072" y="280">ns : equipe-ia</text>
+<line class="div" x1="1072" y1="289" x2="1348" y2="289"/>
+<text class="fld" x="1072" y="307" xml:space="preserve">label kueue.x-k8s.io/queue-name:</text>
+<text class="fld" x="1072" y="323" xml:space="preserve">  lq-h200-mig</text>
+<rect class="bdg kq" x="1332" y="312" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="323" text-anchor="middle">I</text>
+<text class="fld" x="1072" y="339" xml:space="preserve">limits nvidia.com/mig-1g.18gb: 1</text>
+<rect class="bdg kr" x="1332" y="328" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="339" text-anchor="middle">F</text>
+<rect class="box" x="190" y="405" width="240" height="140" rx="8"/>
+<text class="kind" x="202" y="424">Kueue</text>
+<text class="name" x="202" y="444">cluster</text>
+<text class="ns" x="202" y="460">ns : openshift-kueue-operator</text>
+<line class="div" x1="202" y1="469" x2="418" y2="469"/>
+<text class="fld" x="202" y="487" xml:space="preserve">créée par l’opérateur RHOAI</text>
+<text class="fld" x="202" y="503" xml:space="preserve">active le contrôleur Kueue</text>
+<text class="fld" x="202" y="519" xml:space="preserve">(Red Hat build of Kueue)</text>
+<rect class="box shadow" x="782" y="393" width="240" height="140" rx="8"/>
+<rect class="box shadow" x="776" y="399" width="240" height="140" rx="8"/>
+<rect class="box" x="770" y="405" width="240" height="140" rx="8"/>
+<text class="kind" x="782" y="424">ClusterQueue</text>
+<text class="name" x="782" y="444">cq-h200-mig</text>
+<text class="ns" x="782" y="460">scope : cluster</text>
+<line class="div" x1="782" y1="469" x2="998" y2="469"/>
+<text class="fld" x="782" y="487" xml:space="preserve">flavors[].name: h200</text>
+<rect class="bdg kq" x="982" y="476" width="18" height="15" rx="4"/><text class="bdgt" x="991" y="487" text-anchor="middle">G</text>
+<text class="fld" x="782" y="503" xml:space="preserve">coveredResources:</text>
+<text class="fld" x="782" y="519" xml:space="preserve">  nvidia.com/mig-1g.18gb</text>
+<rect class="bdg kr" x="982" y="508" width="18" height="15" rx="4"/><text class="bdgt" x="991" y="519" text-anchor="middle">F</text>
+<text class="fld" x="782" y="535" xml:space="preserve">nominalQuota: 23</text>
+<rect class="bdg kz" x="982" y="524" width="18" height="15" rx="4"/><text class="bdgt" x="991" y="535" text-anchor="middle">Q</text>
+<rect class="box shadow" x="1072" y="393" width="300" height="140" rx="8"/>
+<rect class="box shadow" x="1066" y="399" width="300" height="140" rx="8"/>
+<rect class="box" x="1060" y="405" width="300" height="140" rx="8"/>
+<text class="kind" x="1072" y="424">ResourceFlavor</text>
+<text class="name" x="1072" y="444">h200</text>
+<text class="ns" x="1072" y="460">scope : cluster</text>
+<line class="div" x1="1072" y1="469" x2="1348" y2="469"/>
+<text class="fld" x="1072" y="487" xml:space="preserve">nodeLabels:</text>
+<text class="fld" x="1072" y="503" xml:space="preserve">  gpu.alf.corp/pool: h200</text>
+<rect class="bdg kp" x="1332" y="492" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="503" text-anchor="middle">A</text>
+<text class="fld" x="1072" y="519" xml:space="preserve">tolerations:</text>
+<text class="fld" x="1072" y="535" xml:space="preserve">  nvidia.com/gpu  NoSchedule</text>
+<rect class="bdg kp" x="1332" y="524" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="535" text-anchor="middle">B</text>
+<rect class="box" x="190" y="585" width="240" height="140" rx="8"/>
+<text class="kind" x="202" y="604">ClusterPolicy</text>
+<text class="name" x="202" y="624">gpu-cluster-policy</text>
+<text class="ns" x="202" y="640">scope : cluster</text>
+<line class="div" x1="202" y1="649" x2="418" y2="649"/>
+<text class="fld" x="202" y="667" xml:space="preserve">mig.strategy: mixed</text>
+<rect class="bdg km" x="402" y="656" width="18" height="15" rx="4"/><text class="bdgt" x="411" y="667" text-anchor="middle">E</text>
+<text class="fld" x="202" y="683" xml:space="preserve">migManager.config:</text>
+<text class="fld" x="202" y="699" xml:space="preserve">  name: custom-mig-config</text>
+<rect class="bdg km" x="402" y="688" width="18" height="15" rx="4"/><text class="bdgt" x="411" y="699" text-anchor="middle">D</text>
+<text class="fld" x="202" y="715" xml:space="preserve">  default: all-disabled</text>
+<rect class="bdg km" x="402" y="704" width="18" height="15" rx="4"/><text class="bdgt" x="411" y="715" text-anchor="middle">C</text>
+<rect class="box" x="480" y="585" width="240" height="140" rx="8"/>
+<text class="kind" x="492" y="604">ConfigMap</text>
+<text class="name" x="492" y="624">custom-mig-config</text>
+<text class="ns" x="492" y="640">ns : nvidia-gpu-operator</text>
+<line class="div" x1="492" y1="649" x2="708" y2="649"/>
+<text class="fld" x="492" y="667" xml:space="preserve">mig-configs:</text>
+<text class="fld" x="492" y="683" xml:space="preserve">  all-disabled</text>
+<rect class="bdg km" x="692" y="672" width="18" height="15" rx="4"/><text class="bdgt" x="701" y="683" text-anchor="middle">C</text>
+<text class="fld" x="492" y="699" xml:space="preserve">  h200-4full-4mig</text>
+<rect class="bdg km" x="692" y="688" width="18" height="15" rx="4"/><text class="bdgt" x="701" y="699" text-anchor="middle">C</text>
+<text class="fld" x="492" y="715" xml:space="preserve">  h200-6full-2mig  …</text>
+<rect class="box" x="190" y="765" width="240" height="140" rx="8"/>
+<text class="kind" x="202" y="784">MachineSet</text>
+<text class="name" x="202" y="804">worker-l4</text>
+<text class="ns" x="202" y="820">ns : openshift-machine-api</text>
+<line class="div" x1="202" y1="829" x2="418" y2="829"/>
+<text class="fld" x="202" y="847" xml:space="preserve">label gpu.alf.corp/pool: l4</text>
+<text class="fld" x="202" y="863" xml:space="preserve">taint nvidia.com/gpu</text>
+<text class="fld" x="202" y="879" xml:space="preserve">flavor ocp-worker-l4x2</text>
+<rect class="box" x="480" y="765" width="240" height="140" rx="8"/>
+<text class="kind" x="492" y="784">Node · 2 × L4</text>
+<text class="name" x="492" y="804">l4-worker-1</text>
+<text class="ns" x="492" y="820">pas de MIG possible</text>
+<line class="div" x1="492" y1="829" x2="708" y2="829"/>
+<text class="fld" x="492" y="847" xml:space="preserve">gpu.alf.corp/pool=l4</text>
+<text class="fld" x="492" y="863" xml:space="preserve">allocatable :</text>
+<text class="fld" x="492" y="879" xml:space="preserve">  nvidia.com/gpu: 2</text>
+<rect class="bdg kr" x="692" y="868" width="18" height="15" rx="4"/><text class="bdgt" x="701" y="879" text-anchor="middle">F</text>
+<rect class="box" x="770" y="765" width="240" height="140" rx="8"/>
+<text class="kind" x="782" y="784">MachineSet</text>
+<text class="name" x="782" y="804">worker-h200</text>
+<text class="ns" x="782" y="820">ns : openshift-machine-api</text>
+<line class="div" x1="782" y1="829" x2="998" y2="829"/>
+<text class="fld" x="782" y="847" xml:space="preserve">label gpu.alf.corp/pool: h200</text>
+<rect class="bdg kp" x="982" y="836" width="18" height="15" rx="4"/><text class="bdgt" x="991" y="847" text-anchor="middle">A</text>
+<text class="fld" x="782" y="863" xml:space="preserve">taint nvidia.com/gpu</text>
+<rect class="bdg kp" x="982" y="852" width="18" height="15" rx="4"/><text class="bdgt" x="991" y="863" text-anchor="middle">B</text>
+<text class="fld" x="782" y="879" xml:space="preserve">flavor ocp-worker-h200x8</text>
+<rect class="box" x="1060" y="765" width="300" height="140" rx="8"/>
+<text class="kind" x="1072" y="784">Node · 8 × H200</text>
+<text class="name" x="1072" y="804">h200-worker-a</text>
+<text class="ns" x="1072" y="820">gpu.alf.corp/pool=h200</text>
+<rect class="bdg kp" x="1332" y="809" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="820" text-anchor="middle">A</text>
+<line class="div" x1="1072" y1="829" x2="1348" y2="829"/>
+<text class="fld" x="1072" y="847" xml:space="preserve">nvidia.com/mig.config=h200-4full-4mig</text>
+<rect class="bdg km" x="1332" y="836" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="847" text-anchor="middle">C</text>
+<text class="fld" x="1072" y="863" xml:space="preserve">allocatable (créé par le mig-manager) :</text>
+<text class="fld" x="1072" y="879" xml:space="preserve">  nvidia.com/gpu: 4</text>
+<rect class="bdg kr" x="1332" y="868" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="879" text-anchor="middle">F</text>
+<text class="fld" x="1072" y="895" xml:space="preserve">  nvidia.com/mig-1g.18gb: 16</text>
+<rect class="bdg kr" x="1332" y="884" width="18" height="15" rx="4"/><text class="bdgt" x="1341" y="895" text-anchor="middle">F</text>
+<path class="arr act" d="M310 185 V405" marker-end="url(#ah)"/>
+<text class="lbl" x="320" y="290" text-anchor="start">crée la CR Kueue</text>
+<text class="lbl" x="320" y="303" text-anchor="start">si absente</text>
+<path class="arr act" d="M430 475 H770" marker-end="url(#ah)"/>
+<text class="lbl" x="600" y="467" text-anchor="middle">gère les files</text>
+<path class="arr act" d="M600 185 V225" marker-end="url(#ah)"/>
+<text class="lbl" x="610" y="209" text-anchor="start">projets créés via le dashboard : label + LocalQueue</text>
+<path class="arr hot" d="M1120 185 V203 H890 V225" marker-end="url(#ah-hot)"/>
+<text class="lbl hotl" x="1005" y="198" text-anchor="middle">I · localQueueName</text>
+<path class="arr act" d="M1270 185 V225" marker-end="url(#ah)"/>
+<text class="lbl" x="1278" y="209" text-anchor="start">injecte</text>
+<path class="arr ref" d="M720 295 H770" marker-end="url(#ah)"/>
+<text class="lbl" x="745" y="287" text-anchor="middle">contient</text>
+<path class="arr hot" d="M1060 320 H1010" marker-end="url(#ah-hot)"/>
+<text class="lbl hotl" x="1035" y="312" text-anchor="middle">soumis à</text>
+<path class="arr hot" d="M980 365 V405" marker-end="url(#ah-hot)"/>
+<text class="lbl hotl" x="990" y="390" text-anchor="start">H · clusterQueue</text>
+<path class="arr hot" d="M1010 470 H1060" marker-end="url(#ah-hot)"/>
+<text class="lbl hotl" x="1035" y="462" text-anchor="middle">G</text>
+<path class="arr hot" d="M1300 545 V765" marker-end="url(#ah-hot)"/>
+<text class="lbl hotl" x="1290" y="628" text-anchor="end">sélectionne les nœuds</text>
+<text class="lbl hotl" x="1290" y="641" text-anchor="end">A · nodeLabels</text>
+<text class="lbl hotl" x="1290" y="654" text-anchor="end">B · tolerations</text>
+<path class="arr ref" d="M430 655 H480" marker-end="url(#ah)"/>
+<text class="lbl" x="455" y="647" text-anchor="middle">D</text>
+<path class="arr ref" d="M1100 765 V745 H620 V725" marker-end="url(#ah)"/>
+<text class="lbl" x="860" y="740" text-anchor="middle">C · label nvidia.com/mig.config = une clé du catalogue</text>
+<path class="arr act" d="M720 690 H990 V545" marker-end="url(#ah)"/>
+<text class="lbl" x="855" y="676" text-anchor="middle">nominalQuota = somme des instances</text>
+<text class="lbl" x="855" y="689" text-anchor="middle">créées (maintenu à la main)</text>
+<path class="arr act" d="M1010 835 H1060" marker-end="url(#ah)"/>
+<text class="lbl" x="1035" y="827" text-anchor="middle">crée</text>
+<path class="arr act" d="M430 835 H480" marker-end="url(#ah)"/>
+<text class="lbl" x="455" y="827" text-anchor="middle">crée</text>
+<path class="arr act" d="M1360 300 H1392 V860 H1360" marker-end="url(#ah)"/>
+<text class="lbl" x="1406" y="580" text-anchor="middle" transform="rotate(-90 1406 580)">admis par Kueue, puis placé par le scheduler sur un nœud du flavor</text>
+</svg>
+  </div>
+  <figcaption>Exemple d’un workbench « H200 – MIG 1g.18gb » dans le projet <code>equipe-ia</code>. Les boîtes empilées existent en plusieurs exemplaires (un par offre GPU). Sur mobile, faites défiler la carte horizontalement.</figcaption>
+</figure>
+
+<section class="keys">
+  <h2>Les clés de jointure</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Clé</th><th>Côté source</th><th>Côté cible</th><th>Règle</th></tr></thead>
+    <tbody>
+<tr><td><span class="chip kp">A</span></td><td>Label du MachineSet <code>gpu.alf.corp/pool</code></td><td><code>ResourceFlavor.spec.nodeLabels</code></td><td>Clé et valeur identiques</td></tr>
+<tr><td><span class="chip kp">B</span></td><td>Taint du MachineSet <code>nvidia.com/gpu</code></td><td><code>ResourceFlavor.spec.tolerations</code></td><td>Même clé, même effet</td></tr>
+<tr><td><span class="chip km">C</span></td><td>Label de nœud <code>nvidia.com/mig.config</code> (et <code>default</code> de la ClusterPolicy)</td><td>Une clé sous <code>mig-configs</code></td><td>Nom de configuration identique</td></tr>
+<tr><td><span class="chip km">D</span></td><td><code>ClusterPolicy.spec.migManager.config.name</code></td><td>Nom de la ConfigMap</td><td>ConfigMap dans <code>nvidia-gpu-operator</code></td></tr>
+<tr><td><span class="chip km">E</span></td><td><code>ClusterPolicy.spec.mig.strategy: mixed</code></td><td>Format des ressources annoncées</td><td><code>mixed</code> donne <code>nvidia.com/mig-&lt;profil&gt;</code></td></tr>
+<tr><td><span class="chip kr">F</span></td><td>Ressources annoncées par le nœud</td><td><code>coveredResources</code> de la ClusterQueue, <code>identifier</code> du profil, <code>limits</code> du pod</td><td>Caractère pour caractère</td></tr>
+<tr><td><span class="chip kq">G</span></td><td><code>ResourceFlavor.metadata.name</code></td><td><code>ClusterQueue…flavors[].name</code></td><td>Nom identique</td></tr>
+<tr><td><span class="chip kq">H</span></td><td><code>ClusterQueue.metadata.name</code></td><td><code>LocalQueue.spec.clusterQueue</code></td><td>Nom identique</td></tr>
+<tr><td><span class="chip kq">I</span></td><td><code>LocalQueue.metadata.name</code> dans le projet</td><td><code>HardwareProfile…kueue.localQueueName</code> et label <code>queue-name</code> du pod</td><td>La LocalQueue doit exister dans chaque projet</td></tr>
+<tr><td><span class="chip kz">Q</span></td><td>Instances créées par les configurations MIG en place</td><td><code>nominalQuota</code> de la ClusterQueue</td><td>Aucun nom ne les relie : à resynchroniser à chaque redécoupage</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="cols">
+  <div class="panel">
+    <h2>Le même schéma, trois fois</h2>
+    <p class="lead">Chaque offre GPU a sa propre chaîne profil → LocalQueue → ClusterQueue → ResourceFlavor.</p>
+    <div class="repeat">
+      <div>gpu-l4 → lq-l4 → cq-l4 → l4</div>
+      <div>gpu-h200-full → lq-h200-full → cq-h200-full → h200</div>
+      <div>gpu-h200-mig-* → lq-h200-mig → cq-h200-mig → h200</div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Ordre d’application</h2>
+    <ol>
+      <li>Opérateurs : cert-manager, Red Hat build of Kueue, NFD, GPU Operator.</li>
+      <li>MachineSets L4 et H200 avec label de pool et taint.</li>
+      <li>ClusterPolicy et ConfigMap MIG, puis label <code>mig.config</code> sur chaque nœud H200.</li>
+      <li>DataScienceCluster (Kueue <code>Unmanaged</code>) et OdhDashboardConfig.</li>
+      <li>ResourceFlavors, puis ClusterQueues avec les quotas.</li>
+      <li>Label Kueue et LocalQueues dans chaque projet.</li>
+      <li>HardwareProfiles de type <code>Queue</code>.</li>
+    </ol>
+  </div>
+  <div class="panel">
+    <h2>Si je change…</h2>
+    <ul>
+      <li>le label <code>mig.config</code> d’un nœud : revoir les quotas (Q) et les profils MIG proposés.</li>
+      <li>le label de pool d’un MachineSet : revoir le ResourceFlavor (A).</li>
+      <li>un nouveau projet : créer ses LocalQueues et poser le label Kueue (I).</li>
+      <li>une nouvelle taille MIG : ConfigMap, ClusterQueue (F, Q), puis un nouveau profil.</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+</body></html>

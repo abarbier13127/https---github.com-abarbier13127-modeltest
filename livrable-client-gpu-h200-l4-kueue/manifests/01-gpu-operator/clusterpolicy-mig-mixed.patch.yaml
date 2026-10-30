@@ -1,0 +1,10 @@
+# Patch (merge) de la ClusterPolicy NVIDIA : stratégie MIG "mixed".
+# Avec "mixed", le device plugin publie chaque type de tranche sous son propre nom de ressource
+# (nvidia.com/mig-1g.18gb, nvidia.com/mig-2g.35gb, nvidia.com/mig-3g.71gb), ce qu'attendent les
+# ResourceFlavors, la ClusterQueue et les hardware profiles de ce livrable.
+# Application : oc patch clusterpolicy gpu-cluster-policy --type merge --patch-file <ce fichier>
+spec:
+  mig:
+    strategy: mixed
+  migManager:
+    enabled: true

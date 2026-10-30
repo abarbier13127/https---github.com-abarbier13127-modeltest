@@ -1,0 +1,37 @@
+# ResourceFlavors H200 : une par profil MIG appliqué sur des nœuds (label nvidia.com/mig.config).
+# Les nodeLabels utilisent les labels posés par GPU Feature Discovery (gpu.product) et par l'admin / mig-manager (mig.config).
+# Kueue injecte nodeLabels → nodeSelector et tolerations → tolerations dans les pods admis.
+# Tout nouveau profil MIG (nom de profil sur mesure) exige sa propre ResourceFlavor + son entrée dans la ClusterQueue.
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: rf-h200                          # H200 entiers
+spec:
+  nodeLabels:
+    nvidia.com/gpu.product: NVIDIA-H200
+    nvidia.com/mig.config: all-disabled
+  tolerations:                           # À ADAPTER : taint réel des nœuds GPU (supprimer le bloc s il n y en a pas)
+  - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: rf-h200-mig                      # H200 découpés, profil standard NVIDIA all-balanced (2x1g.18gb + 1x2g.35gb + 1x3g.71gb / GPU)
+spec:
+  nodeLabels:
+    nvidia.com/gpu.product: NVIDIA-H200
+    nvidia.com/mig.config: all-balanced
+  tolerations:                           # À ADAPTER : taint réel des nœuds GPU (supprimer le bloc s il n y en a pas)
+  - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}
+---
+# OPTIONNEL : seulement si des nœuds utilisent le profil sur mesure h200-4full-4balanced (config MIG personnalisée).
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: rf-h200-mixte                    # GPU 0-3 entiers + GPU 4-7 en all-balanced
+spec:
+  nodeLabels:
+    nvidia.com/gpu.product: NVIDIA-H200
+    nvidia.com/mig.config: h200-4full-4balanced
+  tolerations:                           # À ADAPTER : taint réel des nœuds GPU (supprimer le bloc s il n y en a pas)
+  - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}

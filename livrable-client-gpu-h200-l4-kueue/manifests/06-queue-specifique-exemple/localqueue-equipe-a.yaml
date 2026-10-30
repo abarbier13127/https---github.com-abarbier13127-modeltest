@@ -1,0 +1,9 @@
+# EXEMPLE — Variante B : LocalQueue SUPPLÉMENTAIRE "equipe-a" dans le projet, à côté de "default".
+# Utilisée via le hardware profile propre au projet (hardware-profile-equipe-a.yaml).
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: equipe-a
+  namespace: equipe-a
+spec:
+  clusterQueue: cq-equipe-a

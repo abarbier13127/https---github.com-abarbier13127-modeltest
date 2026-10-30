@@ -1,0 +1,11 @@
+# Patch (merge) de la ClusterPolicy NVIDIA : utiliser la config MIG personnalisée à la place de default-mig-parted-config.
+# OPTIONNEL : seulement si un profil sur mesure est utilisé (ici h200-4full-4balanced, h200-all-1g18).
+# Prérequis : la ConfigMap custom-mig-parted-config existe dans le namespace du GPU operator (clé config.yaml).
+# "default" = profil appliqué aux nœuds GPU qui n'ont PAS le label nvidia.com/mig.config.
+# Application : oc patch clusterpolicy gpu-cluster-policy --type merge --patch-file <ce fichier>
+spec:
+  migManager:
+    enabled: true
+    config:
+      name: custom-mig-parted-config
+      default: all-disabled

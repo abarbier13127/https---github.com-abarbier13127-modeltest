@@ -1,0 +1,13 @@
+# EXEMPLE — Variante A : la LocalQueue "default" DU PROJET pointe vers la ClusterQueue dédiée.
+# Tous les profils H200 globaux (localQueueName: default) utilisent alors cq-equipe-a dans ce projet.
+# spec.clusterQueue est IMMUABLE : supprimer d'abord la LocalQueue default créée par RHOAI, puis appliquer ce fichier.
+# Annotation opendatahub.io/managed: "false" : empêche l'opérateur RHOAI (autoCreateQueues) de la remplacer.
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: default
+  namespace: equipe-a
+  annotations:
+    opendatahub.io/managed: "false"
+spec:
+  clusterQueue: cq-equipe-a

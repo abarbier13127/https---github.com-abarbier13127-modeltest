@@ -5,8 +5,8 @@
 # (OPENAI_API_BASE_URLS / OPENAI_API_KEYS) dans le Deployment Open WebUI
 # existant (dans AiDocs : manifests/01-open-webui.yaml).
 #
-#   connexion 0 : le LLM en direct        → modèle « qwen-gpu »
-#   connexion 1 : via NeMo Guardrails      → modèle « guardrails.qwen-gpu »
+#   connexion 0 : le LLM en direct        → modèle « granite-3-3-2b »
+#   connexion 1 : via NeMo Guardrails      → modèle « guardrails.granite-3-3-2b »
 #
 # Prérequis :
 #   - ServiceAccount open-webui (aidocs) et son Secret de jeton non
@@ -20,7 +20,7 @@
 # ⚠️ Réglages à faire ensuite dans l'interface (enregistrés en base) :
 #    Admin Panel → Settings → Models, pour les DEUX modèles :
 #      Capabilities → décocher « Builtin Tools » ;
-#    et pour guardrails.qwen-gpu :
+#    et pour guardrails.granite-3-3-2b :
 #      Advanced Params → Stream Chat Response = Off.
 #    Voir GUIDE.md §6.
 # Modèle : rendre avec ../render.sh ; $(OWUI_TOKEN) n'est pas touché par le rendu.
@@ -33,10 +33,10 @@
                   name: open-webui-token
                   key: token
             - name: OPENAI_API_BASE_URLS
-              value: 'https://qwen-gpu-predictor.alf-test.svc.cluster.local:8443/v1;https://nemo-guardrails.guardrails-demo.svc.cluster.local/v1'
+              value: 'https://granite-llmd-kserve-workload-svc.alf-test.svc.cluster.local:8000/v1;https://nemo-guardrails.guardrails-demo.svc.cluster.local/v1'
             - name: OPENAI_API_KEYS
               value: '$(OWUI_TOKEN);$(OWUI_TOKEN)'
-            # prefix_id évite la collision des deux « qwen-gpu » (retiré avant
+            # prefix_id évite la collision des deux « granite-3-3-2b » (retiré avant
             # l'envoi) ; model_ids déclare le modèle sans interroger /v1/models de NeMo.
             - name: OPENAI_API_CONFIGS
-              value: '{"0":{},"1":{"prefix_id":"guardrails","model_ids":["qwen-gpu"]}}'
+              value: '{"0":{},"1":{"prefix_id":"guardrails","model_ids":["granite-3-3-2b"]}}'

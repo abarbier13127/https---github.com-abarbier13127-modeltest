@@ -1,7 +1,7 @@
 # =============================================================================
 # 01 — Configuration NeMo Guardrails « demo »
 # -----------------------------------------------------------------------------
-#   LLM protégé : qwen-gpu via https://qwen-gpu-predictor.alf-test.svc.cluster.local:8443/v1. Le CA
+#   LLM protégé : granite-3-3-2b via https://granite-llmd-kserve-workload-svc.alf-test.svc.cluster.local:8000/v1. Le CA
 #                 service-ca est injecté par l'opérateur TrustyAI, le jeton vient
 #                 de OPENAI_API_KEY (CR NemoGuardrails).
 #   Rails actifs, aucun appel LLM supplémentaire :
@@ -25,8 +25,11 @@ data:
       - type: main
         engine: openai
         parameters:
-          openai_api_base: "https://qwen-gpu-predictor.alf-test.svc.cluster.local:8443/v1"
-          model_name: "qwen-gpu"
+          # « base_url » et non « openai_api_base » : depuis RHOAI 3.5.1, NeMo
+          # refuse l'ancienne clé LangChain (« Could not load the ['demo']
+          # guardrails configuration »).
+          base_url: "https://granite-llmd-kserve-workload-svc.alf-test.svc.cluster.local:8000/v1"
+          model_name: "granite-3-3-2b"
 
     rails:
       config:

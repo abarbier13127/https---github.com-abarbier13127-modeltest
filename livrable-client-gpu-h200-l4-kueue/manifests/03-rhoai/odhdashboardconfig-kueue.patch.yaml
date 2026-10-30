@@ -1,0 +1,8 @@
+# Patch (merge) de la config du dashboard RHOAI : activer les fonctions Kueue du dashboard.
+# Le dashboard RHOAI 3.5 a la valeur par défaut disableKueue: true. Sans ce réglage, les projets créés depuis le
+# dashboard ne reçoivent pas le label kueue.openshift.io/managed et les profils "Queue" ne sont pas proposés.
+# Seuls les projets créés APRÈS ce réglage sont labellisés automatiquement.
+# Application : oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge --patch-file <ce fichier>
+spec:
+  dashboardConfig:
+    disableKueue: false

@@ -67,3 +67,16 @@ Résultat : DSC Ready en ~1 min ; opérateur TrustyAI Running ; CRD `nemoguardra
 ## Recette automatisée (2026-09-30)
 
 `python3 tests/recette.py params/ds-alf-corp.env --direct` → **15/15**.
+
+## Bascule sur granite-llmd (2026-10-29)
+
+- `qwen-gpu` arrêté (annotation `serving.kserve.io/stop`) ; le seul GPU est pris par le
+  LLMInferenceService `granite-llmd` → plus aucun modèle dans Open WebUI.
+- Cluster : CR NemoGuardrails + ConfigMap `nemo-config` + env Open WebUI rebranchés sur
+  `granite-llmd-kserve-workload-svc.alf-test:8000` (modèle `granite-3-3-2b`, sans auth).
+- NeMo RHOAI 3.5.1 refuse `openai_api_base` → renommé `base_url` dans `01-nemo-config.yaml`.
+- `params/ds-alf-corp.env` mis à jour, `build/ds-alf-corp/` re-rendu.
+- Interface : *Builtin Tools* et *Stream Chat Response* à refaire sur les nouveaux identifiants
+  de modèle (réglages rattachés à l'id).
+- `python3 tests/recette.py params/ds-alf-corp.env` → **14/14** (`--direct` non applicable :
+  pas de Route `granite-llmd`).

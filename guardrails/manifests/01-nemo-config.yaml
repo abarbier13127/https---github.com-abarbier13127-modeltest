@@ -25,7 +25,10 @@ data:
       - type: main
         engine: openai
         parameters:
-          openai_api_base: "${LLM_BASE_URL}"
+          # « base_url » et non « openai_api_base » : depuis RHOAI 3.5.1, NeMo
+          # refuse l'ancienne clé LangChain (« Could not load the ['demo']
+          # guardrails configuration »).
+          base_url: "${LLM_BASE_URL}"
           model_name: "${LLM_MODEL_NAME}"
 
     rails:

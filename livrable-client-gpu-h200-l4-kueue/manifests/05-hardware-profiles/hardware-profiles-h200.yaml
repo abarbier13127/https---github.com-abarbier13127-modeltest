@@ -1,0 +1,96 @@
+# Hardware profiles H200 — type Queue → LocalQueue "default" (créée par RHOAI dans chaque projet géré par Kueue).
+# Globaux (namespace redhat-ods-applications) : proposés dans tous les projets gérés par Kueue.
+# Ils demandent des RESSOURCES (nvidia.com/gpu, nvidia.com/mig-*) : c'est Kueue qui choisit la flavor, donc le type de nœud.
+# Un profil Queue ne doit porter NI nodeSelector NI toleration (règle RHOAI) : le placement vient de la ResourceFlavor.
+# Valeurs CPU/mémoire : bornes proposées dans le dashboard, À ADAPTER.
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: h200-full
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/display-name: "NVIDIA H200 141 Go"
+    opendatahub.io/description: "GPU H200 entier (1 à 8), via Kueue."
+    opendatahub.io/disabled: "false"
+    opendatahub.io/managed: "false"
+    opendatahub.io/dashboard-feature-visibility: "[]"
+  labels:
+    gpu-kueue.livrable/profile: "true"
+spec:
+  identifiers:
+  - {identifier: nvidia.com/gpu, displayName: "NVIDIA H200", resourceType: Accelerator, defaultCount: 1, minCount: 1, maxCount: 8}
+  - {identifier: cpu, displayName: CPU, resourceType: CPU, defaultCount: 16, minCount: 1, maxCount: 128}
+  - {identifier: memory, displayName: Memory, resourceType: Memory, defaultCount: 128Gi, minCount: 4Gi, maxCount: 1536Gi}
+  scheduling:
+    type: Queue
+    kueue:
+      localQueueName: default
+---
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: h200-mig-1g18
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/display-name: "H200 MIG 1g.18gb"
+    opendatahub.io/description: "Tranche MIG 1/7 de H200, 18 Go, via Kueue."
+    opendatahub.io/disabled: "false"
+    opendatahub.io/managed: "false"
+    opendatahub.io/dashboard-feature-visibility: "[]"
+  labels:
+    gpu-kueue.livrable/profile: "true"
+spec:
+  identifiers:
+  - {identifier: nvidia.com/mig-1g.18gb, displayName: "MIG 1g.18gb", resourceType: Accelerator, defaultCount: 1, minCount: 1, maxCount: 4}
+  - {identifier: cpu, displayName: CPU, resourceType: CPU, defaultCount: 4, minCount: 1, maxCount: 16}
+  - {identifier: memory, displayName: Memory, resourceType: Memory, defaultCount: 32Gi, minCount: 4Gi, maxCount: 128Gi}
+  scheduling:
+    type: Queue
+    kueue:
+      localQueueName: default
+---
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: h200-mig-2g35
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/display-name: "H200 MIG 2g.35gb"
+    opendatahub.io/description: "Tranche MIG 2/7 de H200, 35 Go, via Kueue."
+    opendatahub.io/disabled: "false"
+    opendatahub.io/managed: "false"
+    opendatahub.io/dashboard-feature-visibility: "[]"
+  labels:
+    gpu-kueue.livrable/profile: "true"
+spec:
+  identifiers:
+  - {identifier: nvidia.com/mig-2g.35gb, displayName: "MIG 2g.35gb", resourceType: Accelerator, defaultCount: 1, minCount: 1, maxCount: 4}
+  - {identifier: cpu, displayName: CPU, resourceType: CPU, defaultCount: 8, minCount: 1, maxCount: 32}
+  - {identifier: memory, displayName: Memory, resourceType: Memory, defaultCount: 64Gi, minCount: 4Gi, maxCount: 256Gi}
+  scheduling:
+    type: Queue
+    kueue:
+      localQueueName: default
+---
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: h200-mig-3g71
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/display-name: "H200 MIG 3g.71gb"
+    opendatahub.io/description: "Tranche MIG 3/7 de H200, 71 Go, via Kueue."
+    opendatahub.io/disabled: "false"
+    opendatahub.io/managed: "false"
+    opendatahub.io/dashboard-feature-visibility: "[]"
+  labels:
+    gpu-kueue.livrable/profile: "true"
+spec:
+  identifiers:
+  - {identifier: nvidia.com/mig-3g.71gb, displayName: "MIG 3g.71gb", resourceType: Accelerator, defaultCount: 1, minCount: 1, maxCount: 2}
+  - {identifier: cpu, displayName: CPU, resourceType: CPU, defaultCount: 12, minCount: 1, maxCount: 48}
+  - {identifier: memory, displayName: Memory, resourceType: Memory, defaultCount: 96Gi, minCount: 4Gi, maxCount: 512Gi}
+  scheduling:
+    type: Queue
+    kueue:
+      localQueueName: default

@@ -1,0 +1,27 @@
+  # ===========================================================================
+  # Profils sur mesure H200 (à ajouter à la config par défaut du GPU operator)
+  # H200 SXM = 0x233510DE, H200 NVL = 0x233B10DE
+  # Fragment indenté de 2 espaces : il s'insère sous la clé "mig-configs:".
+  # ===========================================================================
+
+  # 4 GPU entiers (0-3) + 4 GPU découpés "balanced" (4-7) sur le même nœud
+  # → nvidia.com/gpu: 4, mig-1g.18gb: 8, mig-2g.35gb: 4, mig-3g.71gb: 4
+  h200-4full-4balanced:
+    - device-filter: ["0x233510DE", "0x233B10DE"]
+      devices: [0, 1, 2, 3]
+      mig-enabled: false
+    - device-filter: ["0x233510DE", "0x233B10DE"]
+      devices: [4, 5, 6, 7]
+      mig-enabled: true
+      mig-devices:
+        "1g.18gb": 2
+        "2g.35gb": 1
+        "3g.71gb": 1
+
+  # Petites tranches uniquement : 7 x 1g.18gb par GPU → mig-1g.18gb: 56 sur un nœud 8 GPU
+  h200-all-1g18:
+    - device-filter: ["0x233510DE", "0x233B10DE"]
+      devices: all
+      mig-enabled: true
+      mig-devices:
+        "1g.18gb": 7

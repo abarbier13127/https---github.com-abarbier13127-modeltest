@@ -1,0 +1,28 @@
+# Hardware profile L4 — type Node (nodeSelector + toleration), HORS Kueue.
+# Utilisable UNIQUEMENT dans les projets sortis de Kueue (labels kueue.openshift.io/managed ET kueue-managed retirés) :
+# dans un projet géré par Kueue, RHOAI refuse les profils avec nodeSelector/tolerations.
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: l4
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/display-name: "NVIDIA L4 24 Go"
+    opendatahub.io/description: "GPU L4 (1 à 4), placement direct sur les nœuds L4, hors Kueue. Projets hors Kueue uniquement."
+    opendatahub.io/disabled: "false"
+    opendatahub.io/managed: "false"
+    opendatahub.io/dashboard-feature-visibility: "[]"
+  labels:
+    gpu-kueue.livrable/profile: "true"
+spec:
+  identifiers:
+  - {identifier: nvidia.com/gpu, displayName: "NVIDIA L4", resourceType: Accelerator, defaultCount: 1, minCount: 1, maxCount: 4}
+  - {identifier: cpu, displayName: CPU, resourceType: CPU, defaultCount: 4, minCount: 1, maxCount: 44}
+  - {identifier: memory, displayName: Memory, resourceType: Memory, defaultCount: 16Gi, minCount: 4Gi, maxCount: 176Gi}
+  scheduling:
+    type: Node
+    node:
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-L4       # label posé par GPU Feature Discovery
+      tolerations:                             # À ADAPTER : taint réel des nœuds L4 (supprimer s'il n'y en a pas)
+      - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}

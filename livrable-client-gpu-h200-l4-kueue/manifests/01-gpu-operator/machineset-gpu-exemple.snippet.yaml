@@ -1,0 +1,19 @@
+# EXTRAIT D'EXEMPLE (pas un objet complet à appliquer) : labels et taint à porter par le spec.template
+# des MachineSets GPU, pour que chaque nouveau nœud soit découpé et ciblé dès son arrivée.
+# À reporter dans les MachineSets existants du client (oc edit machineset <nom> -n openshift-machine-api).
+# Sans MachineSet (bare-metal) : poser les mêmes labels/taints directement sur les nœuds (oc label / oc adm taint).
+spec:
+  template:
+    spec:
+      metadata:
+        labels:
+          # profil MIG appliqué par mig-manager — UNE valeur par MachineSet :
+          #   all-disabled         → H200 entiers            (flavor rf-h200)
+          #   all-balanced         → H200 découpés standard  (flavor rf-h200-mig)
+          #   h200-4full-4balanced → profil sur mesure        (flavor rf-h200-mixte, config personnalisée requise)
+          nvidia.com/mig.config: all-balanced
+      taints:                       # À ADAPTER : taint réel des nœuds GPU du client (ou supprimer s'il n'y en a pas)
+      - key: nvidia.com/gpu
+        value: "true"
+        effect: NoSchedule
+# nvidia.com/gpu.product (NVIDIA-H200, NVIDIA-L4) est posé automatiquement par GPU Feature Discovery : ne pas le mettre ici.
